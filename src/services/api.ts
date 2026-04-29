@@ -9,8 +9,12 @@ import type {
   LiveGameAnalysis,
 } from '../types'
 
+const runtimeApiUrl = (
+  window as Window & { __APP_CONFIG__?: { VITE_API_URL?: string } }
+).__APP_CONFIG__?.VITE_API_URL
+
 const client = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
+  baseURL: runtimeApiUrl || import.meta.env.VITE_API_URL || 'http://localhost:8000',
   timeout: 180_000, // 3 min — PBP requests são lentos
 })
 
