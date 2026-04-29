@@ -13,8 +13,21 @@ const runtimeApiUrl = (
   window as Window & { __APP_CONFIG__?: { VITE_API_URL?: string } }
 ).__APP_CONFIG__?.VITE_API_URL
 
+const normalizeApiUrl = (value?: string) => {
+  if (!value) return undefined
+  const trimmed = value.trim().replace(/\/$/, '')
+  if (!trimmed) return undefined
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  return `https://${trimmed}`
+}
+
+const apiBaseUrl =
+  normalizeApiUrl(runtimeApiUrl) ||
+  normalizeApiUrl(import.meta.env.VITE_API_URL) ||
+  'http://localhost:8000'
+
 const client = axios.create({
-  baseURL: runtimeApiUrl || import.meta.env.VITE_API_URL || 'http://localhost:8000',
+  baseURL: apiBaseUrl,
   timeout: 180_000, // 3 min — PBP requests são lentos
 })
 
