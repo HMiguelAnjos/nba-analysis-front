@@ -17,8 +17,15 @@ const normalizeApiUrl = (value?: string) => {
   if (!value) return undefined
   const trimmed = value.trim().replace(/\/$/, '')
   if (!trimmed) return undefined
-  if (/^https?:\/\//i.test(trimmed)) return trimmed
-  return `https://${trimmed}`
+
+  // If env value comes as "/api.example.com", treat it as host instead of relative path.
+  const withoutLeadingSlashes = trimmed.replace(/^\/+/, '')
+
+  if (/^https?:\/\//i.test(withoutLeadingSlashes)) {
+    return withoutLeadingSlashes
+  }
+
+  return `https://${withoutLeadingSlashes}`
 }
 
 const apiBaseUrl =
