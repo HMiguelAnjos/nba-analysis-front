@@ -15,7 +15,8 @@ const runtimeApiUrl = (
 
 const normalizeApiUrl = (value?: string) => {
   if (!value) return undefined
-  const trimmed = value.trim().replace(/\/$/, '')
+  const unquoted = value.trim().replace(/^['\"]|['\"]$/g, '')
+  const trimmed = unquoted.replace(/\/$/, '')
   if (!trimmed) return undefined
 
   // If env value comes as "/api.example.com", treat it as host instead of relative path.
@@ -29,7 +30,7 @@ const normalizeApiUrl = (value?: string) => {
 }
 
 const apiBaseUrl =
-  normalizeApiUrl(runtimeApiUrl) ||
+  (normalizeApiUrl(runtimeApiUrl) ? '/api' : undefined) ||
   normalizeApiUrl(import.meta.env.VITE_API_URL) ||
   'http://localhost:8080'
 
