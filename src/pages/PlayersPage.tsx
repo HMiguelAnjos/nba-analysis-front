@@ -83,7 +83,10 @@ export default function PlayersPage() {
         setAnalysis(a.data)
         setGameStats(g.data)
       })
-      .catch(() => setError('Erro ao buscar dados. Verifique se a API está rodando em localhost:8080.'))
+      .catch((err) => {
+        const msg = err?.response?.data?.detail || err?.message || String(err)
+        setError(`Erro ao buscar dados: ${msg}`)
+      })
       .finally(() => setLoadingStats(false))
   }, [player, season])
 

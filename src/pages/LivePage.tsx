@@ -90,7 +90,10 @@ export default function LivePage() {
     setLoadingGames(true)
     api.getTodayGames()
       .then(r => setTodayGames(r.data))
-      .catch(() => setError('Erro ao buscar jogos. Verifique se a API está rodando em localhost:8080.'))
+      .catch((err) => {
+        const msg = err?.response?.data?.detail || err?.message || String(err)
+        setError(`Erro ao buscar jogos: ${msg}`)
+      })
       .finally(() => setLoadingGames(false))
   }, [])
 
