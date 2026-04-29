@@ -31,7 +31,7 @@ const normalizeApiUrl = (value?: string) => {
 const apiBaseUrl =
   normalizeApiUrl(runtimeApiUrl) ||
   normalizeApiUrl(import.meta.env.VITE_API_URL) ||
-  'http://localhost:8000'
+  'http://localhost:8080'
 
 const client = axios.create({
   baseURL: apiBaseUrl,
