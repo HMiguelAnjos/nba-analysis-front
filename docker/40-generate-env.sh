@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-API_URL="${VITE_API_URL:-${vite_api_url:-http://localhost:8080}}"
+API_URL="${VITE_API_URL:-${vite_api_url:-http://localhost:8000}}"
 API_URL="$(printf '%s' "$API_URL" | sed "s/^['\"]//; s/['\"]$//" | sed 's#/*$##')"
 
 case "$API_URL" in
