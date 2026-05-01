@@ -41,61 +41,57 @@ const STATUS_LABEL: Record<string, string> = {
   cold: 'Frio',
 }
 
-// Thresholds mirror the backend's calc_player_status:
-//   hot          → score ≥ 5
-//   above_average→ score ≥ 2
-//   normal       → score > -2
-//   below_average→ score > -5
-//   cold         → score ≤ -5
-function betRecommendation(status: string) {
-  switch (status) {
-    case 'hot':           return { label: 'Apostar Forte', emoji: '🎯', classes: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' }
-    case 'above_average': return { label: 'Apostar',       emoji: '✅', classes: 'bg-green-500/20 text-green-400 border border-green-500/40' }
-    case 'normal':        return { label: 'Observar',      emoji: '👀', classes: 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/40' }
-    case 'below_average': return { label: 'Evitar',        emoji: '⛔', classes: 'bg-red-500/20 text-red-400 border border-red-500/40' }
-    default:              return { label: 'Evitar Forte',  emoji: '❌', classes: 'bg-red-700/20 text-red-300 border border-red-700/40' }
-  }
+// score ≥ 5  → hot (backend)       → Apostar Forte
+// score ≥ 3  → acima do limiar     → Apostar
+// score ≥ 0  → razoável            → Observar
+// score > -5 → abaixo do esperado  → Evitar
+// score ≤ -5 → cold (backend)      → Evitar Forte
+function betRecommendation(score: number) {
+  if (score >= 5)  return { label: 'Apostar Forte', emoji: '🎯', classes: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' }
+  if (score >= 3)  return { label: 'Apostar',       emoji: '✅', classes: 'bg-green-500/20 text-green-400 border border-green-500/40' }
+  if (score >= 0)  return { label: 'Observar',      emoji: '👀', classes: 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/40' }
+  if (score > -5)  return { label: 'Evitar',        emoji: '⛔', classes: 'bg-red-500/20 text-red-400 border border-red-500/40' }
+  return           { label: 'Evitar Forte',         emoji: '❌', classes: 'bg-red-700/20 text-red-300 border border-red-700/40' }
 }
 
-function PointsBar({ actual, expected }: { actual: number; expected: number }) {
+function PointsComparison({ actual, expected }: { actual: number; expected: number }) {
   const max = Math.max(actual, expected, 1)
-  const actualPct = Math.min((actual / max) * 100, 100)
+  const actualPct  = Math.min((actual   / max) * 100, 100)
   const expectedPct = Math.min((expected / max) * 100, 100)
-  const isAbove = actual >= expected
   const diff = actual - expected
+  const isAbove = diff >= 0
 
   return (
     <div className="flex items-center gap-3 flex-1 min-w-0">
-      {/* Actual pts */}
-      <div className="text-right shrink-0 w-14">
-        <span className={`text-xl font-bold leading-none ${isAbove ? 'text-white' : 'text-slate-400'}`}>
-          {actual}
-        </span>
-        <span className="text-slate-500 text-xs block">pts</span>
+      <div className="flex-1 space-y-1.5">
+        {/* Marcou row */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-500 w-16 shrink-0">Marcou</span>
+          <div className="flex-1 h-2 bg-slate-700 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${isAbove ? 'bg-orange-500' : 'bg-slate-400'}`}
+              style={{ width: `${actualPct}%` }}
+            />
+          </div>
+          <span className={`text-sm font-bold w-7 text-right shrink-0 ${isAbove ? 'text-white' : 'text-slate-400'}`}>
+            {actual}
+          </span>
+        </div>
+        {/* Esperado row */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-500 w-16 shrink-0">Esperado</span>
+          <div className="flex-1 h-2 bg-slate-700 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-slate-500 rounded-full transition-all"
+              style={{ width: `${expectedPct}%` }}
+            />
+          </div>
+          <span className="text-sm text-slate-400 w-7 text-right shrink-0">{expected}</span>
+        </div>
       </div>
 
-      {/* Bar */}
-      <div className="flex-1 min-w-[60px]">
-        <div className="relative h-2.5 bg-slate-700 rounded-full overflow-visible">
-          {/* Actual bar */}
-          <div
-            className={`absolute top-0 left-0 h-full rounded-full transition-all ${isAbove ? 'bg-orange-500' : 'bg-slate-500'}`}
-            style={{ width: `${actualPct}%` }}
-          />
-          {/* Expected marker line */}
-          <div
-            className="absolute top-[-3px] h-[18px] w-0.5 bg-slate-400 rounded"
-            style={{ left: `calc(${expectedPct}% - 1px)` }}
-          />
-        </div>
-        <div className="flex justify-between mt-1">
-          <span className="text-xs text-slate-600">0</span>
-          <span className="text-xs text-slate-500">esp. <span className="text-slate-400">{expected}</span></span>
-        </div>
-      </div>
-
-      {/* Diff */}
-      <div className={`shrink-0 text-sm font-semibold w-12 text-right ${diff > 0 ? 'text-green-400' : diff < 0 ? 'text-red-400' : 'text-slate-500'}`}>
+      {/* Diff badge */}
+      <div className={`shrink-0 text-sm font-bold w-14 text-right ${diff > 0 ? 'text-green-400' : diff < 0 ? 'text-red-400' : 'text-slate-500'}`}>
         {diff > 0 ? '+' : ''}{diff.toFixed(1)}
       </div>
     </div>
@@ -123,10 +119,10 @@ function TeamRankingGroup({
       </div>
       <div className="space-y-3 mb-5">
         {players.map((p) => {
-          const bet = betRecommendation(p.status)
+          const bet = betRecommendation(p.score)
           return (
             <div key={p.player_id} className="bg-slate-750 rounded-lg p-3 border border-slate-700/50 hover:border-slate-600 transition-colors">
-              <div className="flex items-start justify-between gap-3 mb-2">
+              <div className="flex items-start justify-between gap-3 mb-3">
                 {/* Name + status */}
                 <div className="flex items-center gap-2 flex-wrap min-w-0">
                   <span className="text-white font-semibold text-sm leading-tight">{p.name}</span>
@@ -139,8 +135,8 @@ function TeamRankingGroup({
                   {bet.emoji} {bet.label}
                 </span>
               </div>
-              {/* Points bar */}
-              <PointsBar actual={p.current_points} expected={p.expected_points} />
+              {/* Points comparison */}
+              <PointsComparison actual={p.current_points} expected={p.expected_points} />
               {/* Footer: minutes */}
               <p className="text-slate-600 text-xs mt-2">{p.minutes} min jogados</p>
             </div>
@@ -409,7 +405,7 @@ export default function LivePage() {
                             </span>
                           </td>
                           <td className="p-4 text-center">
-                            {(() => { const b = betRecommendation(p.status); return (
+                            {(() => { const b = betRecommendation(p.score); return (
                               <span className={`text-xs font-semibold px-2 py-0.5 rounded-lg border ${b.classes}`}>
                                 {b.emoji} {b.label}
                               </span>
