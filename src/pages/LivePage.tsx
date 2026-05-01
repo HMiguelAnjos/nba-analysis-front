@@ -41,11 +41,20 @@ const STATUS_LABEL: Record<string, string> = {
   cold: 'Frio',
 }
 
-function betRecommendation(score: number) {
-  if (score >= 3)  return { label: 'Apostar Forte', emoji: '🎯', classes: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' }
-  if (score >= 1)  return { label: 'Apostar',       emoji: '✅', classes: 'bg-green-500/20 text-green-400 border border-green-500/40' }
-  if (score >= 0)  return { label: 'Observar',      emoji: '👀', classes: 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/40' }
-  return           { label: 'Evitar',               emoji: '⛔', classes: 'bg-red-500/20 text-red-400 border border-red-500/40' }
+// Thresholds mirror the backend's calc_player_status:
+//   hot          → score ≥ 5
+//   above_average→ score ≥ 2
+//   normal       → score > -2
+//   below_average→ score > -5
+//   cold         → score ≤ -5
+function betRecommendation(status: string) {
+  switch (status) {
+    case 'hot':           return { label: 'Apostar Forte', emoji: '🎯', classes: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' }
+    case 'above_average': return { label: 'Apostar',       emoji: '✅', classes: 'bg-green-500/20 text-green-400 border border-green-500/40' }
+    case 'normal':        return { label: 'Observar',      emoji: '👀', classes: 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/40' }
+    case 'below_average': return { label: 'Evitar',        emoji: '⛔', classes: 'bg-red-500/20 text-red-400 border border-red-500/40' }
+    default:              return { label: 'Evitar Forte',  emoji: '❌', classes: 'bg-red-700/20 text-red-300 border border-red-700/40' }
+  }
 }
 
 function PointsBar({ actual, expected }: { actual: number; expected: number }) {
@@ -114,7 +123,7 @@ function TeamRankingGroup({
       </div>
       <div className="space-y-3 mb-5">
         {players.map((p) => {
-          const bet = betRecommendation(p.score)
+          const bet = betRecommendation(p.status)
           return (
             <div key={p.player_id} className="bg-slate-750 rounded-lg p-3 border border-slate-700/50 hover:border-slate-600 transition-colors">
               <div className="flex items-start justify-between gap-3 mb-2">
@@ -400,7 +409,7 @@ export default function LivePage() {
                             </span>
                           </td>
                           <td className="p-4 text-center">
-                            {(() => { const b = betRecommendation(p.score); return (
+                            {(() => { const b = betRecommendation(p.status); return (
                               <span className={`text-xs font-semibold px-2 py-0.5 rounded-lg border ${b.classes}`}>
                                 {b.emoji} {b.label}
                               </span>
