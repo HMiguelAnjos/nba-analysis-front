@@ -33,6 +33,115 @@ const STATUS_EMOJI: Record<string, string> = {
   cold: '🥶',
 }
 
+const STATUS_LABEL: Record<string, string> = {
+  hot: 'Em chamas',
+  above_average: 'Acima do normal',
+  normal: 'Normal',
+  below_average: 'Abaixo do normal',
+  cold: 'Frio',
+}
+
+function betRecommendation(score: number) {
+  if (score >= 3)  return { label: 'Apostar Forte', emoji: '🎯', classes: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' }
+  if (score >= 1)  return { label: 'Apostar',       emoji: '✅', classes: 'bg-green-500/20 text-green-400 border border-green-500/40' }
+  if (score >= 0)  return { label: 'Observar',      emoji: '👀', classes: 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/40' }
+  return           { label: 'Evitar',               emoji: '⛔', classes: 'bg-red-500/20 text-red-400 border border-red-500/40' }
+}
+
+function PointsBar({ actual, expected }: { actual: number; expected: number }) {
+  const max = Math.max(actual, expected, 1)
+  const actualPct = Math.min((actual / max) * 100, 100)
+  const expectedPct = Math.min((expected / max) * 100, 100)
+  const isAbove = actual >= expected
+  const diff = actual - expected
+
+  return (
+    <div className="flex items-center gap-3 flex-1 min-w-0">
+      {/* Actual pts */}
+      <div className="text-right shrink-0 w-14">
+        <span className={`text-xl font-bold leading-none ${isAbove ? 'text-white' : 'text-slate-400'}`}>
+          {actual}
+        </span>
+        <span className="text-slate-500 text-xs block">pts</span>
+      </div>
+
+      {/* Bar */}
+      <div className="flex-1 min-w-[60px]">
+        <div className="relative h-2.5 bg-slate-700 rounded-full overflow-visible">
+          {/* Actual bar */}
+          <div
+            className={`absolute top-0 left-0 h-full rounded-full transition-all ${isAbove ? 'bg-orange-500' : 'bg-slate-500'}`}
+            style={{ width: `${actualPct}%` }}
+          />
+          {/* Expected marker line */}
+          <div
+            className="absolute top-[-3px] h-[18px] w-0.5 bg-slate-400 rounded"
+            style={{ left: `calc(${expectedPct}% - 1px)` }}
+          />
+        </div>
+        <div className="flex justify-between mt-1">
+          <span className="text-xs text-slate-600">0</span>
+          <span className="text-xs text-slate-500">esp. <span className="text-slate-400">{expected}</span></span>
+        </div>
+      </div>
+
+      {/* Diff */}
+      <div className={`shrink-0 text-sm font-semibold w-12 text-right ${diff > 0 ? 'text-green-400' : diff < 0 ? 'text-red-400' : 'text-slate-500'}`}>
+        {diff > 0 ? '+' : ''}{diff.toFixed(1)}
+      </div>
+    </div>
+  )
+}
+
+function TeamRankingGroup({
+  tricode,
+  teamName,
+  players,
+}: {
+  tricode: string
+  teamName: string
+  players: import('../types').HotRankingPlayer[]
+}) {
+  if (players.length === 0) return null
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <span className="bg-slate-700 text-slate-300 text-xs font-bold px-2.5 py-1 rounded-lg border border-slate-600">
+          {tricode}
+        </span>
+        <span className="text-slate-500 text-sm">{teamName}</span>
+        <div className="flex-1 h-px bg-slate-700" />
+      </div>
+      <div className="space-y-3 mb-5">
+        {players.map((p) => {
+          const bet = betRecommendation(p.score)
+          return (
+            <div key={p.player_id} className="bg-slate-750 rounded-lg p-3 border border-slate-700/50 hover:border-slate-600 transition-colors">
+              <div className="flex items-start justify-between gap-3 mb-2">
+                {/* Name + status */}
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  <span className="text-white font-semibold text-sm leading-tight">{p.name}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full border ${STATUS_COLORS[p.status]}`}>
+                    {STATUS_EMOJI[p.status]} {STATUS_LABEL[p.status] ?? p.status}
+                  </span>
+                </div>
+                {/* Bet recommendation */}
+                <span className={`shrink-0 text-xs font-semibold px-2.5 py-1 rounded-lg border ${bet.classes}`}>
+                  {bet.emoji} {bet.label}
+                </span>
+              </div>
+              {/* Points bar */}
+              <PointsBar actual={p.current_points} expected={p.expected_points} />
+              {/* Footer: minutes */}
+              <p className="text-slate-600 text-xs mt-2">{p.minutes} min jogados</p>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function GameCard({
   game,
   selected,
@@ -191,45 +300,29 @@ export default function LivePage() {
           {/* Hot Ranking */}
           {ranking && (
             <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 mb-6">
-              <h4 className="text-white font-semibold mb-4">🔥 Hot Ranking</h4>
+              <div className="flex items-center justify-between mb-1">
+                <h4 className="text-white font-semibold">🔥 Hot Ranking</h4>
+                <span className="text-slate-500 text-xs">pts marcados vs esperado pela média da temporada</span>
+              </div>
+              <p className="text-slate-600 text-xs mb-5">
+                A barra mostra pontos atuais; a linha vertical é o esperado proporcionalmente aos minutos jogados.
+              </p>
 
               {ranking.ranking.length === 0 ? (
                 <p className="text-slate-500 text-sm">Nenhum jogador com dados suficientes ainda.</p>
               ) : (
-                <div className="space-y-3">
-                  {ranking.ranking.map((p, i) => (
-                    <div key={p.player_id} className="flex items-center gap-3">
-                      <span className="text-slate-600 w-5 text-sm font-mono">{i + 1}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-white font-medium">{p.name}</span>
-                          <span className="text-slate-500 text-xs">{p.team}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[p.status]}`}>
-                            {STATUS_EMOJI[p.status]} {p.status.replace('_', ' ')}
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500 mt-0.5">
-                          <span title="Pontos marcados no jogo atual">
-                            <span className="text-slate-400 font-medium">{p.current_points}</span> pts marcados
-                          </span>
-                          <span title="Pontos esperados proporcionalmente aos minutos jogados vs. média da temporada">
-                            · esperado: <span className="text-slate-400">{p.expected_points}</span>
-                          </span>
-                          <span
-                            title="Diferença entre pontos marcados e esperados"
-                            className={p.points_diff >= 0 ? 'text-green-400' : 'text-red-400'}
-                          >
-                            ({p.points_diff >= 0 ? '+' : ''}{p.points_diff} vs esperado)
-                          </span>
-                          <span title="Score composto: diferença de pts × 1.0 + reb × 0.7 + ast × 0.8">
-                            · score: <span className="text-slate-400 font-medium">{p.score}</span>
-                          </span>
-                        </div>
-                      </div>
-                      <span className="text-slate-500 text-xs shrink-0" title="Minutos jogados no jogo atual">{p.minutes} min jogados</span>
-                    </div>
-                  ))}
-                </div>
+                <>
+                  <TeamRankingGroup
+                    tricode={selectedGame.away_team.tricode}
+                    teamName={selectedGame.away_team.name}
+                    players={ranking.ranking.filter(p => p.team === selectedGame.away_team.tricode)}
+                  />
+                  <TeamRankingGroup
+                    tricode={selectedGame.home_team.tricode}
+                    teamName={selectedGame.home_team.name}
+                    players={ranking.ranking.filter(p => p.team === selectedGame.home_team.tricode)}
+                  />
+                </>
               )}
             </div>
           )}
@@ -280,7 +373,7 @@ export default function LivePage() {
                       <th className="text-center p-4">REB</th>
                       <th className="text-center p-4">AST</th>
                       <th className="text-center p-4">Status</th>
-                      <th className="text-center p-4">Score</th>
+                      <th className="text-center p-4">Aposta</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -306,7 +399,13 @@ export default function LivePage() {
                               {STATUS_EMOJI[p.status]} {p.status.replace('_', ' ')}
                             </span>
                           </td>
-                          <td className="p-4 text-slate-300 text-center font-mono">{p.score}</td>
+                          <td className="p-4 text-center">
+                            {(() => { const b = betRecommendation(p.score); return (
+                              <span className={`text-xs font-semibold px-2 py-0.5 rounded-lg border ${b.classes}`}>
+                                {b.emoji} {b.label}
+                              </span>
+                            )})()}
+                          </td>
                         </tr>
                       ))}
                   </tbody>
