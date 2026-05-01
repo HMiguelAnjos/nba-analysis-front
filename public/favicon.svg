@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Ball base -->
+  <circle cx="32" cy="32" r="30" fill="#E87722" stroke="#1a1a1a" stroke-width="2"/>
+
+  <!-- Vertical seam -->
+  <path d="M32 2 C32 2 32 62 32 62" fill="none" stroke="#1a1a1a" stroke-width="2.2"/>
+
+  <!-- Horizontal seam -->
+  <path d="M2 32 C2 32 62 32 62 32" fill="none" stroke="#1a1a1a" stroke-width="2.2"/>
+
+  <!-- Left curve seam -->
+  <path d="M32 2 C18 10 10 20 10 32 C10 44 18 54 32 62"
+        fill="none" stroke="#1a1a1a" stroke-width="2.2"/>
+
+  <!-- Right curve seam -->
+  <path d="M32 2 C46 10 54 20 54 32 C54 44 46 54 32 62"
+        fill="none" stroke="#1a1a1a" stroke-width="2.2"/>
+
+  <!-- Clip to circle -->
+  <circle cx="32" cy="32" r="30" fill="none" stroke="#1a1a1a" stroke-width="2"/>
+</svg>
