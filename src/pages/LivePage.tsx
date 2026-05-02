@@ -156,8 +156,23 @@ function TeamRankingGroup({
                 <StatComparison label="AST" actual={p.current_assists}  expected={p.expected_assists}  diff={p.assists_diff}  />
                 <StatComparison label="REB" actual={p.current_rebounds} expected={p.expected_rebounds} diff={p.rebounds_diff} />
               </div>
+              {/* Full-game projections */}
+              <div className="flex items-center gap-2 mt-3">
+                <span className="text-xs text-slate-500 shrink-0">Projeção jogo completo:</span>
+                <div className="flex gap-1.5">
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-orange-500/10 text-orange-300 border border-orange-500/20">
+                    {p.projected_points} PTS
+                  </span>
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-sky-500/10 text-sky-300 border border-sky-500/20">
+                    {p.projected_assists} AST
+                  </span>
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-violet-500/10 text-violet-300 border border-violet-500/20">
+                    {p.projected_rebounds} REB
+                  </span>
+                </div>
+              </div>
               {/* Footer: minutes */}
-              <p className="text-slate-600 text-xs mt-2.5">{p.minutes} min jogados</p>
+              <p className="text-slate-600 text-xs mt-2">{p.minutes} min jogados</p>
             </div>
           )
         })}

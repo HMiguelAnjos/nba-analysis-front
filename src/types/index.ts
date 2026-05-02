@@ -81,6 +81,9 @@ export interface HotRankingPlayer {
   points_diff: number
   assists_diff: number
   rebounds_diff: number
+  projected_points: number
+  projected_assists: number
+  projected_rebounds: number
   status: string
   score: number
 }
