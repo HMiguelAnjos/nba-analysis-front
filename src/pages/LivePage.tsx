@@ -425,11 +425,9 @@ export default function LivePage() {
                           <tr className="border-b border-slate-700 text-slate-500 text-xs">
                             <th className="text-left px-5 py-2.5">Jogador</th>
                             <th className="text-center px-4 py-2.5">Min</th>
-                            <th className="text-center px-4 py-2.5">PTS</th>
-                            <th className="text-center px-4 py-2.5">Esp.</th>
-                            <th className="text-center px-4 py-2.5">Diff</th>
-                            <th className="text-center px-4 py-2.5">REB</th>
-                            <th className="text-center px-4 py-2.5">AST</th>
+                            <th className="text-center px-4 py-2.5">PTS<br/><span className="text-slate-600 font-normal">Esp.</span></th>
+                            <th className="text-center px-4 py-2.5">REB<br/><span className="text-slate-600 font-normal">Esp.</span></th>
+                            <th className="text-center px-4 py-2.5">AST<br/><span className="text-slate-600 font-normal">Esp.</span></th>
                             <th className="text-center px-4 py-2.5">Status</th>
                             <th className="text-center px-4 py-2.5">Aposta</th>
                           </tr>
@@ -442,13 +440,18 @@ export default function LivePage() {
                             >
                               <td className="px-5 py-3 text-white font-medium">{p.name}</td>
                               <td className="px-4 py-3 text-slate-400 text-center">{p.minutes}</td>
-                              <td className="px-4 py-3 text-white text-center font-bold">{p.current.points}</td>
-                              <td className="px-4 py-3 text-slate-500 text-center">{p.expected_until_now.points}</td>
-                              <td className={`px-4 py-3 text-center font-semibold ${p.difference.points > 0 ? 'text-green-400' : p.difference.points < 0 ? 'text-red-400' : 'text-slate-500'}`}>
-                                {p.difference.points > 0 ? '+' : ''}{p.difference.points}
+                              <td className="px-4 py-3 text-center">
+                                <span className="text-white font-bold block">{p.current.points}</span>
+                                <span className="text-slate-500 text-xs">{p.expected_until_now.points}</span>
                               </td>
-                              <td className="px-4 py-3 text-slate-300 text-center">{p.current.rebounds}</td>
-                              <td className="px-4 py-3 text-slate-300 text-center">{p.current.assists}</td>
+                              <td className="px-4 py-3 text-center">
+                                <span className="text-white font-bold block">{p.current.rebounds}</span>
+                                <span className="text-slate-500 text-xs">{p.expected_until_now.rebounds}</span>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <span className="text-white font-bold block">{p.current.assists}</span>
+                                <span className="text-slate-500 text-xs">{p.expected_until_now.assists}</span>
+                              </td>
                               <td className="px-4 py-3 text-center">
                                 <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[p.status]}`}>
                                   {STATUS_EMOJI[p.status]} {STATUS_LABEL[p.status] ?? p.status}
