@@ -151,14 +151,21 @@ function TeamRankingGroup({
                 </span>
               </div>
               {/* Stats comparison */}
-              <div className="space-y-2.5">
-                <StatComparison label="PTS" actual={p.current_points}   expected={p.expected_points}   diff={p.points_diff}   />
-                <StatComparison label="AST" actual={p.current_assists}  expected={p.expected_assists}  diff={p.assists_diff}  />
-                <StatComparison label="REB" actual={p.current_rebounds} expected={p.expected_rebounds} diff={p.rebounds_diff} />
+              <div className="mb-1">
+                <p className="text-xs text-slate-500 mb-2">
+                  Ritmo atual vs. esperado proporcionalmente aos <span className="text-slate-400">{p.minutes} min</span> jogados
+                </p>
+                <div className="space-y-2.5">
+                  <StatComparison label="PTS" actual={p.current_points}   expected={p.expected_points}   diff={p.points_diff}   />
+                  <StatComparison label="AST" actual={p.current_assists}  expected={p.expected_assists}  diff={p.assists_diff}  />
+                  <StatComparison label="REB" actual={p.current_rebounds} expected={p.expected_rebounds} diff={p.rebounds_diff} />
+                </div>
               </div>
               {/* Full-game projections */}
-              <div className="flex items-center gap-2 mt-3">
-                <span className="text-xs text-slate-500 shrink-0">Projeção jogo completo:</span>
+              <div className="mt-3 pt-3 border-t border-slate-700/50">
+                <p className="text-xs text-slate-500 mb-1.5">
+                  Projeção para um jogo típico dele <span className="text-slate-600">(baseada no ritmo atual + média da temporada)</span>
+                </p>
                 <div className="flex gap-1.5">
                   <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-orange-500/10 text-orange-300 border border-orange-500/20">
                     {p.projected_points} PTS
@@ -171,8 +178,6 @@ function TeamRankingGroup({
                   </span>
                 </div>
               </div>
-              {/* Footer: minutes */}
-              <p className="text-slate-600 text-xs mt-2">{p.minutes} min jogados</p>
             </div>
           )
         })}
@@ -341,10 +346,9 @@ export default function LivePage() {
             <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 mb-6">
               <div className="flex items-center justify-between mb-1">
                 <h4 className="text-white font-semibold">🔥 Hot Ranking</h4>
-                <span className="text-slate-500 text-xs">pts marcados vs esperado pela média da temporada</span>
               </div>
               <p className="text-slate-600 text-xs mb-5">
-                A barra mostra pontos atuais; a linha vertical é o esperado proporcionalmente aos minutos jogados.
+                Jogadores ordenados por desempenho vs. média da temporada. Barras mostram o ritmo atual; projeção estima o resultado num jogo típico.
               </p>
 
               {ranking.ranking.length === 0 ? (
