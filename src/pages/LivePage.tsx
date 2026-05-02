@@ -394,66 +394,81 @@ export default function LivePage() {
                 <div>
                   <h4 className="text-white font-semibold">Análise Completa</h4>
                   <p className="text-slate-500 text-xs mt-0.5">
-                    {analysis.players.length} jogadores · {analysis.analysis_type}
+                    {analysis.players.length} jogadores · ordenado por performance
                   </p>
                 </div>
                 {analysis.errors.length > 0 && (
-                  <span className="text-slate-500 text-xs">
-                    {analysis.errors.length} sem dados
-                  </span>
+                  <span className="text-slate-500 text-xs">{analysis.errors.length} sem dados</span>
                 )}
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-700 text-slate-500 text-xs">
-                      <th className="text-left p-4">Jogador</th>
-                      <th className="text-center p-4">Time</th>
-                      <th className="text-center p-4">Min</th>
-                      <th className="text-center p-4">PTS</th>
-                      <th className="text-center p-4">Esp.</th>
-                      <th className="text-center p-4">Diff</th>
-                      <th className="text-center p-4">REB</th>
-                      <th className="text-center p-4">AST</th>
-                      <th className="text-center p-4">Status</th>
-                      <th className="text-center p-4">Aposta</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...analysis.players]
-                      .sort((a, b) => b.score - a.score)
-                      .map(p => (
-                        <tr
-                          key={p.player_id}
-                          className="border-b border-slate-700/40 hover:bg-slate-700/30 transition-colors"
-                        >
-                          <td className="p-4 text-white font-medium">{p.name}</td>
-                          <td className="p-4 text-slate-400 text-center">{p.team}</td>
-                          <td className="p-4 text-slate-400 text-center">{p.minutes}</td>
-                          <td className="p-4 text-white text-center font-bold">{p.current.points}</td>
-                          <td className="p-4 text-slate-500 text-center">{p.expected_until_now.points}</td>
-                          <td className={`p-4 text-center font-semibold ${p.difference.points > 0 ? 'text-green-400' : p.difference.points < 0 ? 'text-red-400' : 'text-slate-500'}`}>
-                            {p.difference.points > 0 ? '+' : ''}{p.difference.points}
-                          </td>
-                          <td className="p-4 text-slate-300 text-center">{p.current.rebounds}</td>
-                          <td className="p-4 text-slate-300 text-center">{p.current.assists}</td>
-                          <td className="p-4 text-center">
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[p.status]}`}>
-                              {STATUS_EMOJI[p.status]} {p.status.replace('_', ' ')}
-                            </span>
-                          </td>
-                          <td className="p-4 text-center">
-                            {(() => { const b = betRecommendation(p.score); return (
-                              <span className={`text-xs font-semibold px-2 py-0.5 rounded-lg border ${b.classes}`}>
-                                {b.emoji} {b.label}
-                              </span>
-                            )})()}
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
+
+              {[
+                { tricode: selectedGame.away_team.tricode, name: selectedGame.away_team.name },
+                { tricode: selectedGame.home_team.tricode, name: selectedGame.home_team.name },
+              ].map(({ tricode, name }) => {
+                const teamPlayers = [...analysis.players]
+                  .filter(p => p.team === tricode)
+                  .sort((a, b) => b.score - a.score)
+                if (teamPlayers.length === 0) return null
+                return (
+                  <div key={tricode}>
+                    {/* Team header */}
+                    <div className="flex items-center gap-2 px-5 py-3 bg-slate-700/30 border-b border-slate-700">
+                      <span className="bg-slate-700 text-slate-300 text-xs font-bold px-2.5 py-1 rounded-lg border border-slate-600">
+                        {tricode}
+                      </span>
+                      <span className="text-slate-400 text-sm">{name}</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-700 text-slate-500 text-xs">
+                            <th className="text-left px-5 py-2.5">Jogador</th>
+                            <th className="text-center px-4 py-2.5">Min</th>
+                            <th className="text-center px-4 py-2.5">PTS</th>
+                            <th className="text-center px-4 py-2.5">Esp.</th>
+                            <th className="text-center px-4 py-2.5">Diff</th>
+                            <th className="text-center px-4 py-2.5">REB</th>
+                            <th className="text-center px-4 py-2.5">AST</th>
+                            <th className="text-center px-4 py-2.5">Status</th>
+                            <th className="text-center px-4 py-2.5">Aposta</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {teamPlayers.map(p => (
+                            <tr
+                              key={p.player_id}
+                              className="border-b border-slate-700/40 hover:bg-slate-700/30 transition-colors"
+                            >
+                              <td className="px-5 py-3 text-white font-medium">{p.name}</td>
+                              <td className="px-4 py-3 text-slate-400 text-center">{p.minutes}</td>
+                              <td className="px-4 py-3 text-white text-center font-bold">{p.current.points}</td>
+                              <td className="px-4 py-3 text-slate-500 text-center">{p.expected_until_now.points}</td>
+                              <td className={`px-4 py-3 text-center font-semibold ${p.difference.points > 0 ? 'text-green-400' : p.difference.points < 0 ? 'text-red-400' : 'text-slate-500'}`}>
+                                {p.difference.points > 0 ? '+' : ''}{p.difference.points}
+                              </td>
+                              <td className="px-4 py-3 text-slate-300 text-center">{p.current.rebounds}</td>
+                              <td className="px-4 py-3 text-slate-300 text-center">{p.current.assists}</td>
+                              <td className="px-4 py-3 text-center">
+                                <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[p.status]}`}>
+                                  {STATUS_EMOJI[p.status]} {STATUS_LABEL[p.status] ?? p.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                {(() => { const b = betRecommendation(p.score); return (
+                                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-lg border ${b.classes}`}>
+                                    {b.emoji} {b.label}
+                                  </span>
+                                )})()}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
