@@ -54,46 +54,61 @@ function betRecommendation(score: number) {
   return           { label: 'Evitar Forte',         emoji: '❌', classes: 'bg-red-700/20 text-red-300 border border-red-700/40' }
 }
 
-function PointsComparison({ actual, expected }: { actual: number; expected: number }) {
+const STAT_COLORS: Record<string, { above: string; bar: string }> = {
+  PTS: { above: 'bg-orange-500',  bar: 'text-orange-300' },
+  AST: { above: 'bg-sky-500',     bar: 'text-sky-300'    },
+  REB: { above: 'bg-violet-500',  bar: 'text-violet-300' },
+}
+
+function StatComparison({
+  label,
+  actual,
+  expected,
+  diff,
+}: {
+  label: 'PTS' | 'AST' | 'REB'
+  actual: number
+  expected: number
+  diff: number
+}) {
   const max = Math.max(actual, expected, 1)
-  const actualPct  = Math.min((actual   / max) * 100, 100)
+  const actualPct   = Math.min((actual   / max) * 100, 100)
   const expectedPct = Math.min((expected / max) * 100, 100)
-  const diff = actual - expected
   const isAbove = diff >= 0
+  const colors = STAT_COLORS[label]
 
   return (
-    <div className="flex items-center gap-3 flex-1 min-w-0">
-      <div className="flex-1 space-y-1.5">
-        {/* Marcou row */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500 w-16 shrink-0">Marcou</span>
-          <div className="flex-1 h-2 bg-slate-700 rounded-full overflow-hidden">
+    <div className="flex items-center gap-2">
+      {/* Stat label */}
+      <span className={`text-xs font-bold w-7 shrink-0 ${colors.bar}`}>{label}</span>
+
+      {/* Bars */}
+      <div className="flex-1 space-y-1">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-slate-500 w-12 shrink-0">Atual</span>
+          <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all ${isAbove ? 'bg-orange-500' : 'bg-slate-400'}`}
+              className={`h-full rounded-full transition-all ${isAbove ? colors.above : 'bg-slate-500'}`}
               style={{ width: `${actualPct}%` }}
             />
           </div>
-          <span className={`text-sm font-bold w-7 text-right shrink-0 ${isAbove ? 'text-white' : 'text-slate-400'}`}>
+          <span className={`text-xs font-bold w-5 text-right shrink-0 ${isAbove ? 'text-white' : 'text-slate-400'}`}>
             {actual}
           </span>
         </div>
-        {/* Esperado row */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500 w-16 shrink-0">Esperado</span>
-          <div className="flex-1 h-2 bg-slate-700 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-slate-500 rounded-full transition-all"
-              style={{ width: `${expectedPct}%` }}
-            />
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-slate-600 w-12 shrink-0">Esperado</span>
+          <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+            <div className="h-full bg-slate-600 rounded-full transition-all" style={{ width: `${expectedPct}%` }} />
           </div>
-          <span className="text-sm text-slate-400 w-7 text-right shrink-0">{expected}</span>
+          <span className="text-xs text-slate-500 w-5 text-right shrink-0">{expected.toFixed(1)}</span>
         </div>
       </div>
 
-      {/* Diff badge */}
-      <div className={`shrink-0 text-sm font-bold w-14 text-right ${diff > 0 ? 'text-green-400' : diff < 0 ? 'text-red-400' : 'text-slate-500'}`}>
+      {/* Diff */}
+      <span className={`text-xs font-bold w-10 text-right shrink-0 ${diff > 0 ? 'text-green-400' : diff < 0 ? 'text-red-400' : 'text-slate-500'}`}>
         {diff > 0 ? '+' : ''}{diff.toFixed(1)}
-      </div>
+      </span>
     </div>
   )
 }
@@ -135,10 +150,14 @@ function TeamRankingGroup({
                   {bet.emoji} {bet.label}
                 </span>
               </div>
-              {/* Points comparison */}
-              <PointsComparison actual={p.current_points} expected={p.expected_points} />
+              {/* Stats comparison */}
+              <div className="space-y-2.5">
+                <StatComparison label="PTS" actual={p.current_points}   expected={p.expected_points}   diff={p.points_diff}   />
+                <StatComparison label="AST" actual={p.current_assists}  expected={p.expected_assists}  diff={p.assists_diff}  />
+                <StatComparison label="REB" actual={p.current_rebounds} expected={p.expected_rebounds} diff={p.rebounds_diff} />
+              </div>
               {/* Footer: minutes */}
-              <p className="text-slate-600 text-xs mt-2">{p.minutes} min jogados</p>
+              <p className="text-slate-600 text-xs mt-2.5">{p.minutes} min jogados</p>
             </div>
           )
         })}
