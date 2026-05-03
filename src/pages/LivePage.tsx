@@ -63,22 +63,36 @@ const TAB_COLORS: Record<StatTab, string> = {
   AST:   'bg-sky-500 text-white',
 }
 
-// Pontos têm desvios maiores em valor absoluto que rebotes/assistências,
-// então cada mercado tem seus próprios limiares de "forte" e "leve".
+// Threshold é PERCENTUAL sobre o esperado, não absoluto.
+// Assim PTS/REB/AST são tratados de forma justa proporcionalmente:
+// um jogador "+50% acima do esperado" é forte tanto se for em pontos
+// (+12.5 numa média de 25) quanto em rebotes (+4 numa média de 8) ou
+// assistências (+3 numa média de 6).
+//
+// Existe ainda um piso ABSOLUTO mínimo para evitar ruído: se o
+// esperado é muito pequeno (poucos minutos jogados), uma diferença
+// percentual gigante mas absolutamente pequena (ex: +1 reb sobre 0.5
+// esperado = +200%) não vira STRONG.
 function getDecisionForStat(p: HotRankingPlayer, tab: StatTab): Decision {
   if (tab === 'GERAL') return getDecision(p.score, p.points_diff)
 
   let diff = 0
-  let strong = 0
-  let lean = 0
-  if (tab === 'PTS') { diff = p.points_diff;   strong = 4;   lean = 1.5 }
-  if (tab === 'REB') { diff = p.rebounds_diff; strong = 2.5; lean = 1   }
-  if (tab === 'AST') { diff = p.assists_diff;  strong = 2.5; lean = 1   }
+  let expected = 0
+  let minAbs = 0   // floor absoluto para considerar STRONG/LEAN
+  if (tab === 'PTS') { diff = p.points_diff;   expected = p.expected_points;   minAbs = 2   }
+  if (tab === 'REB') { diff = p.rebounds_diff; expected = p.expected_rebounds; minAbs = 1   }
+  if (tab === 'AST') { diff = p.assists_diff;  expected = p.expected_assists;  minAbs = 0.8 }
 
-  if (diff >  strong) return 'STRONG_OVER'
-  if (diff >  lean)   return 'LEAN_OVER'
-  if (diff > -lean)   return 'NEUTRAL'
-  if (diff > -strong) return 'LEAN_UNDER'
+  // Sem baseline suficiente para julgar — sai de cena.
+  if (expected < 0.5) return 'NEUTRAL'
+
+  const pct = diff / expected
+
+  // Para entrar em STRONG/LEAN, exige tanto o % quanto o piso absoluto.
+  if (pct >  0.50 && diff >  minAbs * 1.5) return 'STRONG_OVER'
+  if (pct >  0.18 && diff >  minAbs * 0.5) return 'LEAN_OVER'
+  if (pct > -0.18 || Math.abs(diff) <= minAbs * 0.5) return 'NEUTRAL'
+  if (pct > -0.50 || diff > -minAbs * 1.5) return 'LEAN_UNDER'
   return 'STRONG_UNDER'
 }
 
