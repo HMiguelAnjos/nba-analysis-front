@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../services/api'
-import type { TodayGames, LiveGame, HotRanking, LiveGameAnalysis } from '../types'
+import type { TodayGames, LiveGame, HotRanking, LiveGameAnalysis, HotRankingPlayer } from '../types'
 
 function getCurrentSeason(): string {
   const now = new Date()
@@ -17,95 +17,115 @@ const STATUS_LABELS: Record<string, string> = {
   final: 'Finalizado',
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  hot: 'bg-red-500/20 text-red-400 border border-red-500/30',
-  above_average: 'bg-orange-500/20 text-orange-400 border border-orange-500/30',
-  normal: 'bg-slate-700 text-slate-400 border border-slate-600',
-  below_average: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
-  cold: 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30',
+// ─── Decision System ─────────────────────────────────────────────────────────
+
+type Decision = 'STRONG_OVER' | 'LEAN_OVER' | 'NEUTRAL' | 'LEAN_UNDER' | 'STRONG_UNDER'
+
+interface DecisionCfg {
+  label: string
+  emoji: string
+  bannerBg: string
+  bannerText: string
+  borderLeft: string
 }
 
-const STATUS_EMOJI: Record<string, string> = {
-  hot: '🔥',
-  above_average: '📈',
-  normal: '➡️',
-  below_average: '📉',
-  cold: '🥶',
+const DECISION: Record<Decision, DecisionCfg> = {
+  STRONG_OVER:  { label: 'STRONG OVER',  emoji: '🎯', bannerBg: 'bg-emerald-600/40', bannerText: 'text-emerald-200', borderLeft: 'border-l-4 border-l-emerald-500' },
+  LEAN_OVER:    { label: 'LEAN OVER',    emoji: '✅', bannerBg: 'bg-green-600/20',   bannerText: 'text-green-300',   borderLeft: 'border-l-4 border-l-green-500'   },
+  NEUTRAL:      { label: 'NEUTRAL',      emoji: '👀', bannerBg: 'bg-slate-700/40',   bannerText: 'text-slate-400',   borderLeft: 'border-l-4 border-l-slate-600'   },
+  LEAN_UNDER:   { label: 'LEAN UNDER',   emoji: '⛔', bannerBg: 'bg-red-600/20',    bannerText: 'text-red-300',     borderLeft: 'border-l-4 border-l-red-500'     },
+  STRONG_UNDER: { label: 'STRONG UNDER', emoji: '❌', bannerBg: 'bg-red-800/30',    bannerText: 'text-red-200',     borderLeft: 'border-l-4 border-l-red-700'     },
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  hot: 'Em chamas',
-  above_average: 'Acima do normal',
-  normal: 'Normal',
-  below_average: 'Abaixo do normal',
-  cold: 'Frio',
+function getDecision(score: number, pointsDiff: number): Decision {
+  if (score >= 5 || pointsDiff > 4)               return 'STRONG_OVER'
+  if (score >= 2 || pointsDiff > 1.5)             return 'LEAN_OVER'
+  if (score > -2 && pointsDiff > -1.5)            return 'NEUTRAL'
+  if (score > -5 && pointsDiff > -4)              return 'LEAN_UNDER'
+  return 'STRONG_UNDER'
 }
 
-// score ≥ 5  → hot (backend)       → Apostar Forte
-// score ≥ 3  → acima do limiar     → Apostar
-// score ≥ 0  → razoável            → Observar
-// score > -5 → abaixo do esperado  → Evitar
-// score ≤ -5 → cold (backend)      → Evitar Forte
-function betRecommendation(score: number) {
-  if (score >= 5)  return { label: 'Apostar Forte', emoji: '🎯', classes: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' }
-  if (score >= 3)  return { label: 'Apostar',       emoji: '✅', classes: 'bg-green-500/20 text-green-400 border border-green-500/40' }
-  if (score >= 0)  return { label: 'Observar',      emoji: '👀', classes: 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/40' }
-  if (score > -5)  return { label: 'Evitar',        emoji: '⛔', classes: 'bg-red-500/20 text-red-400 border border-red-500/40' }
-  return           { label: 'Evitar Forte',         emoji: '❌', classes: 'bg-red-700/20 text-red-300 border border-red-700/40' }
+// ─── Auto-insight ─────────────────────────────────────────────────────────────
+
+function autoInsight(p: HotRankingPlayer): string {
+  if (p.minutes < 3) return '⏱️ Pouco tempo em quadra — dados insuficientes para análise'
+  const ptsDiff = p.current_points  - p.expected_points
+  const rebDiff = p.current_rebounds - p.expected_rebounds
+  const astDiff = p.current_assists  - p.expected_assists
+  if (p.score >= 5) return '🔥 Ritmo explosivo — muito acima do esperado para este momento'
+  if (p.score >= 3) {
+    if (ptsDiff > 5)  return `📈 Volume de pontos excelente — +${ptsDiff.toFixed(1)} acima do esperado`
+    if (rebDiff > 3)  return `📈 Dominando no garrafão — +${rebDiff.toFixed(1)} REB acima do esperado`
+    if (astDiff > 2)  return `📈 Ditando o ritmo — +${astDiff.toFixed(1)} AST acima do esperado`
+    return '📈 Produção sólida acima da média proporcional ao tempo'
+  }
+  if (p.score >= 0) {
+    if (p.projected_points > p.expected_points * 1.15) return '➡️ Dentro do esperado; projeção final levemente positiva'
+    return '➡️ Desempenho alinhado com a média da temporada'
+  }
+  if (p.score > -3) {
+    if (p.minutes > 24 && ptsDiff < -4) return '⚠️ Alto tempo em quadra, mas pontuação bem abaixo do ritmo'
+    return '📉 Ligeiramente abaixo do esperado — pode reagir no 2º tempo'
+  }
+  if (p.score > -5) return `📉 Abaixo das expectativas — déficit de ${Math.abs(ptsDiff).toFixed(1)} PTS`
+  return '🥶 Muito abaixo do esperado — jogo muito fraco até agora'
 }
 
-const STAT_COLORS: Record<string, { above: string; bar: string }> = {
-  PTS: { above: 'bg-orange-500',  bar: 'text-orange-300' },
-  AST: { above: 'bg-sky-500',     bar: 'text-sky-300'    },
-  REB: { above: 'bg-violet-500',  bar: 'text-violet-300' },
+// ─── Stat Bar ─────────────────────────────────────────────────────────────────
+
+const STAT_CFG: Record<string, { bar: string; text: string }> = {
+  PTS: { bar: 'bg-orange-500', text: 'text-orange-300' },
+  AST: { bar: 'bg-sky-500',    text: 'text-sky-300'    },
+  REB: { bar: 'bg-violet-500', text: 'text-violet-300' },
 }
 
-function StatComparison({
-  label,
-  actual,
-  expected,
-  diff,
+function StatBar({
+  label, actual, expected, diff, compact,
 }: {
   label: 'PTS' | 'AST' | 'REB'
   actual: number
   expected: number
   diff: number
+  compact?: boolean
 }) {
-  const max = Math.max(actual, expected, 1)
-  const actualPct   = Math.min((actual   / max) * 100, 100)
-  const expectedPct = Math.min((expected / max) * 100, 100)
+  const cfg = STAT_CFG[label]
+  const scale = Math.max(actual, expected, 1)
+  const actualPct   = Math.min((actual / scale) * 100, 100)
+  const expectedPct = Math.min((expected / scale) * 100, 100)
   const isAbove = diff >= 0
-  const colors = STAT_COLORS[label]
+
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className={`text-xs font-bold w-7 shrink-0 ${cfg.text}`}>{label}</span>
+        <span className="text-white font-bold text-sm w-5">{actual}</span>
+        <span className="text-slate-600 text-xs">/ {expected.toFixed(1)}</span>
+        <span className={`text-xs font-semibold ml-auto ${diff > 0 ? 'text-green-400' : diff < 0 ? 'text-red-400' : 'text-slate-500'}`}>
+          {diff > 0 ? '+' : ''}{diff.toFixed(1)}
+        </span>
+      </div>
+    )
+  }
 
   return (
     <div className="flex items-center gap-2">
-      {/* Stat label */}
-      <span className={`text-xs font-bold w-7 shrink-0 ${colors.bar}`}>{label}</span>
-
-      {/* Bars */}
-      <div className="flex-1 space-y-1">
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-slate-500 w-12 shrink-0">Atual</span>
-          <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${isAbove ? colors.above : 'bg-slate-500'}`}
-              style={{ width: `${actualPct}%` }}
-            />
-          </div>
-          <span className={`text-xs font-bold w-5 text-right shrink-0 ${isAbove ? 'text-white' : 'text-slate-400'}`}>
-            {actual}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-slate-600 w-12 shrink-0">Esperado</span>
-          <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-            <div className="h-full bg-slate-600 rounded-full transition-all" style={{ width: `${expectedPct}%` }} />
-          </div>
-          <span className="text-xs text-slate-500 w-5 text-right shrink-0">{expected.toFixed(1)}</span>
-        </div>
+      <span className={`text-xs font-bold w-7 shrink-0 ${cfg.text}`}>{label}</span>
+      <div className="flex-1 relative h-2 bg-slate-700 rounded-full overflow-hidden">
+        {/* Expected — background fill */}
+        <div
+          className="absolute inset-y-0 left-0 bg-slate-500/40 rounded-full"
+          style={{ width: `${expectedPct}%` }}
+        />
+        {/* Actual — foreground fill */}
+        <div
+          className={`absolute inset-y-0 left-0 rounded-full transition-all ${isAbove ? cfg.bar : 'bg-slate-500'}`}
+          style={{ width: `${actualPct}%` }}
+        />
       </div>
-
-      {/* Diff */}
+      <span className={`text-sm font-bold w-5 text-right shrink-0 ${isAbove ? 'text-white' : 'text-slate-400'}`}>
+        {actual}
+      </span>
+      <span className="text-slate-500 text-xs w-8 shrink-0">/ {expected.toFixed(1)}</span>
       <span className={`text-xs font-bold w-10 text-right shrink-0 ${diff > 0 ? 'text-green-400' : diff < 0 ? 'text-red-400' : 'text-slate-500'}`}>
         {diff > 0 ? '+' : ''}{diff.toFixed(1)}
       </span>
@@ -113,18 +133,93 @@ function StatComparison({
   )
 }
 
+// ─── Player Card ──────────────────────────────────────────────────────────────
+
+function PlayerCard({ p, compact }: { p: HotRankingPlayer; compact: boolean }) {
+  const decision = getDecision(p.score, p.points_diff)
+  const cfg = DECISION[decision]
+  const insight = autoInsight(p)
+
+  return (
+    <div className={`bg-slate-800 rounded-xl overflow-hidden border border-slate-700/60 hover:border-slate-600 transition-colors ${cfg.borderLeft}`}>
+      {/* Decision Banner — most prominent */}
+      <div className={`px-4 py-2.5 flex items-center justify-between ${cfg.bannerBg}`}>
+        <span className={`text-sm font-black tracking-widest uppercase ${cfg.bannerText}`}>
+          {cfg.emoji} {cfg.label}
+        </span>
+        <span className="text-slate-500 text-xs font-mono">
+          score {p.score > 0 ? '+' : ''}{p.score.toFixed(1)}
+        </span>
+      </div>
+
+      <div className="p-4">
+        {/* Player name + minutes context */}
+        <div className="mb-2">
+          <h4 className="text-white font-bold text-base leading-tight">{p.name}</h4>
+          <p className="text-slate-500 text-xs mt-0.5">{p.team} · {p.minutes} min jogados</p>
+        </div>
+
+        {/* Auto-insight */}
+        <p className="text-xs text-slate-400 italic mb-3 leading-relaxed border-l-2 border-slate-600 pl-2">{insight}</p>
+
+        {/* Stat bars */}
+        <div className="space-y-2 mb-1">
+          {!compact && (
+            <p className="text-xs text-slate-600 mb-1.5">Atual vs. esperado para {p.minutes} min</p>
+          )}
+          <StatBar label="PTS" actual={p.current_points}   expected={p.expected_points}   diff={p.points_diff}   compact={compact} />
+          <StatBar label="AST" actual={p.current_assists}  expected={p.expected_assists}  diff={p.assists_diff}  compact={compact} />
+          <StatBar label="REB" actual={p.current_rebounds} expected={p.expected_rebounds} diff={p.rebounds_diff} compact={compact} />
+        </div>
+
+        {/* Full-game projection */}
+        {!compact && (
+          <div className="mt-3 pt-3 border-t border-slate-700/50">
+            <p className="text-xs text-slate-600 mb-2">
+              Projeção para um jogo típico (ritmo atual + média da temporada)
+            </p>
+            <div className="flex gap-2">
+              <div className="flex-1 text-center bg-orange-500/10 rounded-lg py-2 border border-orange-500/20">
+                <p className="text-orange-300 font-bold text-lg leading-none">{p.projected_points}</p>
+                <p className="text-orange-400/50 text-xs mt-0.5">PTS</p>
+              </div>
+              <div className="flex-1 text-center bg-sky-500/10 rounded-lg py-2 border border-sky-500/20">
+                <p className="text-sky-300 font-bold text-lg leading-none">{p.projected_assists}</p>
+                <p className="text-sky-400/50 text-xs mt-0.5">AST</p>
+              </div>
+              <div className="flex-1 text-center bg-violet-500/10 rounded-lg py-2 border border-violet-500/20">
+                <p className="text-violet-300 font-bold text-lg leading-none">{p.projected_rebounds}</p>
+                <p className="text-violet-400/50 text-xs mt-0.5">REB</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Team Ranking Group ───────────────────────────────────────────────────────
+
 function TeamRankingGroup({
-  tricode,
-  teamName,
-  players,
+  tricode, teamName, players, compact,
 }: {
   tricode: string
   teamName: string
-  players: import('../types').HotRankingPlayer[]
+  players: HotRankingPlayer[]
+  compact: boolean
 }) {
   if (players.length === 0) return null
+
+  const highValue = players.filter(p => p.score >= 3)
+  const lowValue  = players.filter(p => p.score <= -3)
+  const neutral   = players.filter(p => p.score > -3 && p.score < 3)
+
+  const hasGroups = highValue.length > 0 || lowValue.length > 0
+
   return (
-    <div>
+    <div className="mb-6">
+      {/* Team header */}
       <div className="flex items-center gap-2 mb-3">
         <span className="bg-slate-700 text-slate-300 text-xs font-bold px-2.5 py-1 rounded-lg border border-slate-600">
           {tricode}
@@ -132,69 +227,70 @@ function TeamRankingGroup({
         <span className="text-slate-500 text-sm">{teamName}</span>
         <div className="flex-1 h-px bg-slate-700" />
       </div>
-      <div className="space-y-3 mb-5">
-        {players.map((p) => {
-          const bet = betRecommendation(p.score)
-          return (
-            <div key={p.player_id} className="bg-slate-750 rounded-lg p-3 border border-slate-700/50 hover:border-slate-600 transition-colors">
-              <div className="flex items-start justify-between gap-3 mb-3">
-                {/* Name + status */}
-                <div className="flex items-center gap-2 flex-wrap min-w-0">
-                  <span className="text-white font-semibold text-sm leading-tight">{p.name}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full border ${STATUS_COLORS[p.status]}`}>
-                    {STATUS_EMOJI[p.status]} {STATUS_LABEL[p.status] ?? p.status}
-                  </span>
-                </div>
-                {/* Bet recommendation */}
-                <span className={`shrink-0 text-xs font-semibold px-2.5 py-1 rounded-lg border ${bet.classes}`}>
-                  {bet.emoji} {bet.label}
-                </span>
-              </div>
-              {/* Stats comparison */}
-              <div className="mb-1">
-                <p className="text-xs text-slate-500 mb-2">
-                  Ritmo atual vs. esperado proporcionalmente aos <span className="text-slate-400">{p.minutes} min</span> jogados
-                </p>
-                <div className="space-y-2.5">
-                  <StatComparison label="PTS" actual={p.current_points}   expected={p.expected_points}   diff={p.points_diff}   />
-                  <StatComparison label="AST" actual={p.current_assists}  expected={p.expected_assists}  diff={p.assists_diff}  />
-                  <StatComparison label="REB" actual={p.current_rebounds} expected={p.expected_rebounds} diff={p.rebounds_diff} />
-                </div>
-              </div>
-              {/* Full-game projections */}
-              <div className="mt-3 pt-3 border-t border-slate-700/50">
-                <p className="text-xs text-slate-500 mb-1.5">
-                  Projeção para um jogo típico dele <span className="text-slate-600">(baseada no ritmo atual + média da temporada)</span>
-                </p>
-                <div className="flex gap-1.5">
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-orange-500/10 text-orange-300 border border-orange-500/20">
-                    {p.projected_points} PTS
-                  </span>
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-sky-500/10 text-sky-300 border border-sky-500/20">
-                    {p.projected_assists} AST
-                  </span>
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-violet-500/10 text-violet-300 border border-violet-500/20">
-                    {p.projected_rebounds} REB
-                  </span>
-                </div>
-              </div>
+
+      {/* High Value */}
+      {highValue.length > 0 && (
+        <div className="mb-3">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest">⚡ Alto Valor</span>
+            <div className="flex-1 h-px bg-emerald-500/20" />
+          </div>
+          <div className="space-y-2">
+            {highValue.map(p => <PlayerCard key={p.player_id} p={p} compact={compact} />)}
+          </div>
+        </div>
+      )}
+
+      {/* Neutral */}
+      {neutral.length > 0 && (
+        <div className="mb-3">
+          {hasGroups && (
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Neutro</span>
+              <div className="flex-1 h-px bg-slate-700/50" />
             </div>
-          )
-        })}
-      </div>
+          )}
+          <div className="space-y-2">
+            {neutral.map(p => <PlayerCard key={p.player_id} p={p} compact={compact} />)}
+          </div>
+        </div>
+      )}
+
+      {/* Low Value */}
+      {lowValue.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs font-bold text-red-400/70 uppercase tracking-widest">📉 Baixo Valor</span>
+            <div className="flex-1 h-px bg-red-500/20" />
+          </div>
+          <div className="space-y-2">
+            {lowValue.map(p => <PlayerCard key={p.player_id} p={p} compact={compact} />)}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function GameCard({
-  game,
-  selected,
-  onClick,
-}: {
-  game: LiveGame
-  selected: boolean
-  onClick: () => void
-}) {
+// ─── Analysis Table Status ────────────────────────────────────────────────────
+
+const STATUS_COLORS: Record<string, string> = {
+  hot:           'bg-red-500/20 text-red-400 border border-red-500/30',
+  above_average: 'bg-orange-500/20 text-orange-400 border border-orange-500/30',
+  normal:        'bg-slate-700 text-slate-400 border border-slate-600',
+  below_average: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
+  cold:          'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30',
+}
+const STATUS_EMOJI: Record<string, string> = {
+  hot: '🔥', above_average: '📈', normal: '➡️', below_average: '📉', cold: '🥶',
+}
+const STATUS_LABEL: Record<string, string> = {
+  hot: 'Em chamas', above_average: 'Acima', normal: 'Normal', below_average: 'Abaixo', cold: 'Frio',
+}
+
+// ─── Game Card ────────────────────────────────────────────────────────────────
+
+function GameCard({ game, selected, onClick }: { game: LiveGame; selected: boolean; onClick: () => void }) {
   const live = game.game_status === 'in_progress'
   return (
     <button
@@ -221,23 +317,24 @@ function GameCard({
           <p className="text-3xl font-bold text-white mt-1">{game.home_team.score}</p>
         </div>
       </div>
-      <p className="text-slate-600 text-xs mt-3 truncate">
-        {game.away_team.name} vs {game.home_team.name}
-      </p>
+      <p className="text-slate-600 text-xs mt-3 truncate">{game.away_team.name} vs {game.home_team.name}</p>
     </button>
   )
 }
 
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
 export default function LivePage() {
   const season = getCurrentSeason()
-  const [todayGames, setTodayGames] = useState<TodayGames | null>(null)
-  const [selectedGame, setSelectedGame] = useState<LiveGame | null>(null)
-  const [ranking, setRanking] = useState<HotRanking | null>(null)
-  const [analysis, setAnalysis] = useState<LiveGameAnalysis | null>(null)
-  const [loadingGames, setLoadingGames] = useState(false)
+  const [todayGames, setTodayGames]       = useState<TodayGames | null>(null)
+  const [selectedGame, setSelectedGame]   = useState<LiveGame | null>(null)
+  const [ranking, setRanking]             = useState<HotRanking | null>(null)
+  const [analysis, setAnalysis]           = useState<LiveGameAnalysis | null>(null)
+  const [loadingGames, setLoadingGames]   = useState(false)
   const [loadingRanking, setLoadingRanking] = useState(false)
   const [loadingAnalysis, setLoadingAnalysis] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError]                 = useState<string | null>(null)
+  const [compact, setCompact]             = useState(false)
 
   useEffect(() => {
     setLoadingGames(true)
@@ -299,6 +396,7 @@ export default function LivePage() {
         </span>
       </div>
 
+      {/* Error banners */}
       {error === 'stats_blocked' && (
         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 mb-6">
           <p className="text-yellow-400 font-semibold text-sm mb-1">
@@ -307,8 +405,7 @@ export default function LivePage() {
           <p className="text-yellow-400/70 text-xs leading-relaxed">
             O servidor <strong>stats.nba.com</strong> está bloqueando requisições automáticas agora.
             Isso acontece periodicamente, especialmente fora do horário dos jogos.
-            Durante as partidas ao vivo costuma funcionar normalmente.
-            Tente novamente em alguns minutos.
+            Durante as partidas ao vivo costuma funcionar normalmente. Tente novamente em alguns minutos.
           </p>
         </div>
       )}
@@ -323,18 +420,19 @@ export default function LivePage() {
         </div>
       )}
 
+      {/* Loading games */}
       {loadingGames && (
         <div className="flex items-center justify-center py-20 text-slate-500">
           <p>Carregando jogos do dia...</p>
         </div>
       )}
 
+      {/* Games grid */}
       {todayGames && (
         <>
           <p className="text-slate-500 text-sm mb-4">
             {todayGames.date} · {todayGames.games.length} jogo(s)
           </p>
-
           {todayGames.games.length === 0 ? (
             <div className="text-center py-20 text-slate-600">
               <div className="text-5xl mb-3">📅</div>
@@ -343,12 +441,7 @@ export default function LivePage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
               {todayGames.games.map(g => (
-                <GameCard
-                  key={g.game_id}
-                  game={g}
-                  selected={selectedGame?.game_id === g.game_id}
-                  onClick={() => selectGame(g)}
-                />
+                <GameCard key={g.game_id} game={g} selected={selectedGame?.game_id === g.game_id} onClick={() => selectGame(g)} />
               ))}
             </div>
           )}
@@ -358,26 +451,62 @@ export default function LivePage() {
       {/* Selected game panel */}
       {selectedGame && (
         <div className="border-t border-slate-700 pt-6">
-          <h3 className="text-xl font-bold text-white mb-6">
-            {selectedGame.away_team.tricode} @ {selectedGame.home_team.tricode}
-            <span className="text-slate-500 font-normal text-sm ml-3">
-              {selectedGame.game_status === 'in_progress'
-                ? `Q${selectedGame.period} ${selectedGame.clock}`
-                : STATUS_LABELS[selectedGame.game_status]}
-            </span>
-          </h3>
-
-          {loadingRanking && <p className="text-slate-500 text-sm mb-6">Carregando hot ranking...</p>}
-
-          {/* Hot Ranking */}
-          {ranking && (
-            <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 mb-6">
-              <div className="flex items-center justify-between mb-1">
-                <h4 className="text-white font-semibold">🔥 Hot Ranking</h4>
-              </div>
-              <p className="text-slate-600 text-xs mb-5">
-                Jogadores ordenados por desempenho vs. média da temporada. Barras mostram o ritmo atual; projeção estima o resultado num jogo típico.
+          {/* Game header */}
+          <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+            <div>
+              <h3 className="text-xl font-bold text-white">
+                {selectedGame.away_team.tricode} @ {selectedGame.home_team.tricode}
+              </h3>
+              <p className="text-slate-500 text-sm mt-0.5">
+                {selectedGame.game_status === 'in_progress'
+                  ? `🔴 Ao vivo · Q${selectedGame.period} ${selectedGame.clock}`
+                  : STATUS_LABELS[selectedGame.game_status]}
               </p>
+            </div>
+          </div>
+
+          {loadingRanking && (
+            <div className="flex items-center gap-3 py-8 text-slate-500 text-sm">
+              <span className="animate-pulse">⏳</span>
+              Buscando médias da temporada e calculando análises...
+            </div>
+          )}
+
+          {/* Hot Ranking — Betting Terminal */}
+          {ranking && (
+            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-5 mb-6">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-1 flex-wrap gap-3">
+                <div>
+                  <h4 className="text-white font-bold text-lg">🔥 Terminal de Apostas</h4>
+                  <p className="text-slate-500 text-xs mt-0.5">
+                    Jogadores ordenados por desvio vs. média da temporada proporcional ao tempo
+                  </p>
+                </div>
+                {/* Compact toggle */}
+                <button
+                  onClick={() => setCompact(c => !c)}
+                  className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                    compact
+                      ? 'bg-orange-500/20 border-orange-500/40 text-orange-300'
+                      : 'bg-slate-700 border-slate-600 text-slate-400 hover:text-slate-300'
+                  }`}
+                >
+                  {compact ? '▦ Detalhado' : '▤ Compacto'}
+                </button>
+              </div>
+
+              {/* Decision legend */}
+              {!compact && (
+                <div className="flex items-center gap-2 flex-wrap mt-3 mb-4 p-3 bg-slate-700/30 rounded-lg border border-slate-700/50">
+                  <span className="text-xs text-slate-500 mr-1">Leitura:</span>
+                  {(Object.entries(DECISION) as [Decision, DecisionCfg][]).map(([key, d]) => (
+                    <span key={key} className={`text-xs px-2 py-0.5 rounded font-semibold ${d.bannerBg} ${d.bannerText}`}>
+                      {d.emoji} {d.label}
+                    </span>
+                  ))}
+                </div>
+              )}
 
               {ranking.ranking.length === 0 ? (
                 <div className="py-4">
@@ -396,11 +525,13 @@ export default function LivePage() {
                     tricode={selectedGame.away_team.tricode}
                     teamName={selectedGame.away_team.name}
                     players={ranking.ranking.filter(p => p.team === selectedGame.away_team.tricode)}
+                    compact={compact}
                   />
                   <TeamRankingGroup
                     tricode={selectedGame.home_team.tricode}
                     teamName={selectedGame.home_team.name}
                     players={ranking.ranking.filter(p => p.team === selectedGame.home_team.tricode)}
+                    compact={compact}
                   />
                 </>
               )}
@@ -419,8 +550,8 @@ export default function LivePage() {
           )}
 
           {loadingAnalysis && (
-            <p className="text-slate-500 text-sm mb-6">
-              Buscando médias da temporada de cada jogador... ☕ Aguarde.
+            <p className="text-slate-500 text-sm mb-6 animate-pulse">
+              ⏳ Buscando médias da temporada de cada jogador... Aguarde.
             </p>
           )}
 
@@ -449,7 +580,6 @@ export default function LivePage() {
                 if (teamPlayers.length === 0) return null
                 return (
                   <div key={tricode}>
-                    {/* Team header */}
                     <div className="flex items-center gap-2 px-5 py-3 bg-slate-700/30 border-b border-slate-700">
                       <span className="bg-slate-700 text-slate-300 text-xs font-bold px-2.5 py-1 rounded-lg border border-slate-600">
                         {tricode}
@@ -462,47 +592,52 @@ export default function LivePage() {
                           <tr className="border-b border-slate-700 text-slate-500 text-xs">
                             <th className="text-left px-5 py-2.5">Jogador</th>
                             <th className="text-center px-4 py-2.5">Min</th>
-                            <th className="text-center px-4 py-2.5">PTS<br/><span className="text-slate-600 font-normal">Esp.</span></th>
-                            <th className="text-center px-4 py-2.5">REB<br/><span className="text-slate-600 font-normal">Esp.</span></th>
-                            <th className="text-center px-4 py-2.5">AST<br/><span className="text-slate-600 font-normal">Esp.</span></th>
+                            <th className="text-center px-4 py-2.5">
+                              PTS<br/><span className="text-slate-600 font-normal">Esp.</span>
+                            </th>
+                            <th className="text-center px-4 py-2.5">
+                              REB<br/><span className="text-slate-600 font-normal">Esp.</span>
+                            </th>
+                            <th className="text-center px-4 py-2.5">
+                              AST<br/><span className="text-slate-600 font-normal">Esp.</span>
+                            </th>
                             <th className="text-center px-4 py-2.5">Status</th>
-                            <th className="text-center px-4 py-2.5">Aposta</th>
+                            <th className="text-center px-4 py-2.5">Decisão</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {teamPlayers.map(p => (
-                            <tr
-                              key={p.player_id}
-                              className="border-b border-slate-700/40 hover:bg-slate-700/30 transition-colors"
-                            >
-                              <td className="px-5 py-3 text-white font-medium">{p.name}</td>
-                              <td className="px-4 py-3 text-slate-400 text-center">{p.minutes}</td>
-                              <td className="px-4 py-3 text-center">
-                                <span className="text-white font-bold block">{p.current.points}</span>
-                                <span className="text-slate-500 text-xs">{p.expected_until_now.points}</span>
-                              </td>
-                              <td className="px-4 py-3 text-center">
-                                <span className="text-white font-bold block">{p.current.rebounds}</span>
-                                <span className="text-slate-500 text-xs">{p.expected_until_now.rebounds}</span>
-                              </td>
-                              <td className="px-4 py-3 text-center">
-                                <span className="text-white font-bold block">{p.current.assists}</span>
-                                <span className="text-slate-500 text-xs">{p.expected_until_now.assists}</span>
-                              </td>
-                              <td className="px-4 py-3 text-center">
-                                <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[p.status]}`}>
-                                  {STATUS_EMOJI[p.status]} {STATUS_LABEL[p.status] ?? p.status}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-center">
-                                {(() => { const b = betRecommendation(p.score); return (
-                                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-lg border ${b.classes}`}>
-                                    {b.emoji} {b.label}
+                          {teamPlayers.map(p => {
+                            const dec = getDecision(p.score, p.difference.points)
+                            const dcfg = DECISION[dec]
+                            return (
+                              <tr key={p.player_id} className="border-b border-slate-700/40 hover:bg-slate-700/30 transition-colors">
+                                <td className="px-5 py-3 text-white font-medium">{p.name}</td>
+                                <td className="px-4 py-3 text-slate-400 text-center">{p.minutes}</td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className="text-white font-bold block">{p.current.points}</span>
+                                  <span className="text-slate-500 text-xs">{p.expected_until_now.points}</span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className="text-white font-bold block">{p.current.rebounds}</span>
+                                  <span className="text-slate-500 text-xs">{p.expected_until_now.rebounds}</span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className="text-white font-bold block">{p.current.assists}</span>
+                                  <span className="text-slate-500 text-xs">{p.expected_until_now.assists}</span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[p.status]}`}>
+                                    {STATUS_EMOJI[p.status]} {STATUS_LABEL[p.status] ?? p.status}
                                   </span>
-                                )})()}
-                              </td>
-                            </tr>
-                          ))}
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className={`text-xs font-bold px-2 py-0.5 rounded-lg ${dcfg.bannerBg} ${dcfg.bannerText}`}>
+                                    {dcfg.emoji} {dcfg.label}
+                                  </span>
+                                </td>
+                              </tr>
+                            )
+                          })}
                         </tbody>
                       </table>
                     </div>
