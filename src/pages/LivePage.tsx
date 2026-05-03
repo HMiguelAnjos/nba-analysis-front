@@ -635,6 +635,10 @@ export default function LivePage() {
     setRanking(null)
     setAnalysis(null)
     setError(null)
+
+    // Jogo ainda não começou — boxscore não existe, não adianta chamar a API
+    if (game.game_status === 'not_started') return
+
     setLoadingRanking(true)
     try {
       const r = await api.getHotRanking(game.game_id, season, 10)
@@ -747,6 +751,21 @@ export default function LivePage() {
               </p>
             </div>
           </div>
+
+          {/* Jogo ainda não iniciado */}
+          {selectedGame.game_status === 'not_started' && (
+            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-8 mb-6 text-center">
+              <div className="text-5xl mb-4">⏰</div>
+              <p className="text-white font-semibold text-lg mb-1">Aguardando início do jogo</p>
+              <p className="text-slate-400 text-sm leading-relaxed">
+                As análises e o terminal de apostas ficam disponíveis<br />
+                assim que a partida começar.
+              </p>
+              <p className="text-slate-600 text-xs mt-4">
+                A página atualiza automaticamente — não é preciso recarregar.
+              </p>
+            </div>
+          )}
 
           {loadingRanking && (
             <div className="flex items-center gap-3 py-8 text-slate-500 text-sm">
