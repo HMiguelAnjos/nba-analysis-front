@@ -104,6 +104,67 @@ function getStatValue(p: HotRankingPlayer, tab: StatTab): number {
   return p.assists_diff
 }
 
+// ─── Cross-market opportunities ───────────────────────────────────────────────
+// Para cada jogador, gera 3 oportunidades (uma por mercado), filtra as
+// neutras e ordena pelas mais fortes. Permite mostrar uma lista plana
+// de "melhores apostas agora" sem o usuário precisar trocar de aba.
+
+type Market = 'PTS' | 'REB' | 'AST'
+
+interface BettingOpportunity {
+  player: HotRankingPlayer
+  market: Market
+  decision: Decision
+  pct: number
+  diff: number
+  current: number
+  expected: number
+  projected: number
+}
+
+function buildOpportunities(players: HotRankingPlayer[]): BettingOpportunity[] {
+  const opps: BettingOpportunity[] = []
+  for (const p of players) {
+    const markets: Array<{
+      m: Market; diff: number; expected: number; current: number; projected: number
+    }> = [
+      { m: 'PTS', diff: p.points_diff,   expected: p.expected_points,   current: p.current_points,   projected: p.projected_points   },
+      { m: 'REB', diff: p.rebounds_diff, expected: p.expected_rebounds, current: p.current_rebounds, projected: p.projected_rebounds },
+      { m: 'AST', diff: p.assists_diff,  expected: p.expected_assists,  current: p.current_assists,  projected: p.projected_assists  },
+    ]
+    for (const { m, diff, expected, current, projected } of markets) {
+      const decision = getDecisionForStat(p, m)
+      if (decision === 'NEUTRAL') continue
+      const pct = expected > 0 ? diff / expected : 0
+      opps.push({ player: p, market: m, decision, pct, diff, current, expected, projected })
+    }
+  }
+  // STRONG vem primeiro; depois ordena por |%| desviação.
+  const rank = (d: Decision) =>
+    d === 'STRONG_OVER'  ? 4 :
+    d === 'LEAN_OVER'    ? 3 :
+    d === 'LEAN_UNDER'   ? 2 :
+    d === 'STRONG_UNDER' ? 1 : 0
+  opps.sort((a, b) => {
+    const dr = rank(b.decision) - rank(a.decision)
+    if (dr !== 0) return dr
+    return Math.abs(b.pct) - Math.abs(a.pct)
+  })
+  return opps
+}
+
+const MARKET_LABEL: Record<Market, string> = {
+  PTS: 'PONTOS',
+  REB: 'REBOTES',
+  AST: 'ASSISTÊNCIAS',
+}
+
+const MARKET_BAR_COLOR: Record<Market, string> = {
+  PTS: 'text-orange-300',
+  REB: 'text-violet-300',
+  AST: 'text-sky-300',
+}
+
 // ─── Auto-insight ─────────────────────────────────────────────────────────────
 
 function autoInsight(p: HotRankingPlayer): string {
@@ -303,6 +364,99 @@ function PlayerCard({
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// ─── Top Opportunities (cross-market shortlist) ───────────────────────────────
+// View principal: lista plana das melhores apostas AGORA, em qualquer mercado.
+// Em vez de o usuário ter que navegar entre abas e ler cada card, ele vê de
+// cara: "Tatum forte em PONTOS, LeBron forte em ASSISTÊNCIAS, etc."
+
+function OpportunityRow({ o }: { o: BettingOpportunity }) {
+  const cfg = DECISION[o.decision]
+  const direction = (o.decision === 'STRONG_OVER' || o.decision === 'LEAN_OVER') ? 'OVER' : 'UNDER'
+  const pctText = `${o.pct > 0 ? '+' : ''}${(o.pct * 100).toFixed(0)}%`
+  const diffText = `${o.diff > 0 ? '+' : ''}${o.diff.toFixed(1)}`
+  return (
+    <div className={`bg-slate-800 rounded-lg border border-slate-700/60 ${cfg.borderLeft} flex items-center gap-3 px-3 py-2.5`}>
+      {/* Decision pill */}
+      <span className={`text-xs font-bold tracking-wider px-2 py-1 rounded ${cfg.bannerBg} ${cfg.bannerText} shrink-0 w-28 text-center`}>
+        {cfg.emoji} {direction}
+      </span>
+
+      {/* Player + market */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-white font-semibold text-sm truncate">{o.player.name}</span>
+          <span className="text-slate-600 text-xs">·</span>
+          <span className={`text-xs font-bold ${MARKET_BAR_COLOR[o.market]}`}>{MARKET_LABEL[o.market]}</span>
+          <span className="text-slate-600 text-xs">·</span>
+          <span className="text-slate-500 text-xs">{o.player.team}</span>
+        </div>
+        <p className="text-slate-500 text-xs mt-0.5">
+          Atual <span className="text-slate-300 font-semibold">{o.current}</span>
+          <span className="text-slate-700 mx-1">·</span>
+          Esperado <span className="text-slate-400">{o.expected.toFixed(1)}</span>
+          <span className="text-slate-700 mx-1">·</span>
+          Projeção {MARKET_LABEL[o.market].toLowerCase()} jogo todo: <span className="text-slate-300 font-semibold">{o.projected}</span>
+        </p>
+      </div>
+
+      {/* Magnitude */}
+      <div className="text-right shrink-0">
+        <p className={`text-sm font-bold ${o.pct > 0 ? 'text-green-400' : 'text-red-400'}`}>{pctText}</p>
+        <p className="text-slate-600 text-xs">{diffText}</p>
+      </div>
+    </div>
+  )
+}
+
+function TopOpportunities({ players }: { players: HotRankingPlayer[] }) {
+  const opps = buildOpportunities(players)
+  if (opps.length === 0) {
+    return (
+      <div className="mb-6 p-4 bg-slate-800/50 rounded-xl border border-slate-700/60">
+        <p className="text-slate-500 text-sm text-center">
+          Nenhuma oportunidade forte detectada no momento — todos os jogadores estão dentro do esperado.
+        </p>
+      </div>
+    )
+  }
+  const top    = opps.slice(0, 8)
+  const strong = top.filter(o => o.decision === 'STRONG_OVER' || o.decision === 'STRONG_UNDER')
+  const lean   = top.filter(o => o.decision === 'LEAN_OVER'   || o.decision === 'LEAN_UNDER')
+
+  return (
+    <div className="mb-6">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-sm font-bold text-white uppercase tracking-wider">🎯 Melhores Apostas Agora</span>
+        <div className="flex-1 h-px bg-slate-700" />
+        <span className="text-slate-600 text-xs">{opps.length} sinais detectados</span>
+      </div>
+
+      {strong.length > 0 && (
+        <div className="mb-3">
+          <p className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2">⚡ Sinais Fortes</p>
+          <div className="space-y-1.5">
+            {strong.map((o, i) => <OpportunityRow key={`s-${i}`} o={o} />)}
+          </div>
+        </div>
+      )}
+
+      {lean.length > 0 && (
+        <div>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">📊 Sinais Moderados</p>
+          <div className="space-y-1.5">
+            {lean.map((o, i) => <OpportunityRow key={`l-${i}`} o={o} />)}
+          </div>
+        </div>
+      )}
+
+      <p className="text-slate-600 text-[11px] mt-3 italic">
+        Ordenado pela força do desvio (% acima/abaixo do esperado para os minutos jogados).
+        OVER = apostar a mais; UNDER = apostar a menos. Veja os cards abaixo para detalhes.
+      </p>
     </div>
   )
 }
@@ -672,6 +826,11 @@ export default function LivePage() {
                 </div>
               ) : (
                 <>
+                  {/* Cross-market shortlist — only on GERAL tab */}
+                  {activeTab === 'GERAL' && (
+                    <TopOpportunities players={ranking.ranking} />
+                  )}
+
                   <TeamRankingGroup
                     tricode={selectedGame.away_team.tricode}
                     teamName={selectedGame.away_team.name}
