@@ -259,8 +259,13 @@ export default function LivePage() {
     try {
       const r = await api.getHotRanking(game.game_id, season, 10)
       setRanking(r.data)
-    } catch {
-      setError('Erro ao buscar hot ranking. O jogo pode ainda não ter começado.')
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status
+      if (status === 502 || status === 504) {
+        setError('stats_blocked')
+      } else {
+        setError('ranking_error')
+      }
     } finally {
       setLoadingRanking(false)
     }
@@ -273,8 +278,13 @@ export default function LivePage() {
     try {
       const r = await api.getLiveAnalysis(selectedGame.game_id, season)
       setAnalysis(r.data)
-    } catch {
-      setError('Erro ao buscar análise completa.')
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status
+      if (status === 502 || status === 504) {
+        setError('stats_blocked')
+      } else {
+        setError('analysis_error')
+      }
     } finally {
       setLoadingAnalysis(false)
     }
@@ -289,9 +299,27 @@ export default function LivePage() {
         </span>
       </div>
 
-      {error && (
+      {error === 'stats_blocked' && (
+        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 mb-6">
+          <p className="text-yellow-400 font-semibold text-sm mb-1">
+            ⚠️ API de estatísticas da NBA indisponível no momento
+          </p>
+          <p className="text-yellow-400/70 text-xs leading-relaxed">
+            O servidor <strong>stats.nba.com</strong> está bloqueando requisições automáticas agora.
+            Isso acontece periodicamente, especialmente fora do horário dos jogos.
+            Durante as partidas ao vivo costuma funcionar normalmente.
+            Tente novamente em alguns minutos.
+          </p>
+        </div>
+      )}
+      {error === 'ranking_error' && (
         <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400 text-sm mb-6">
-          {error}
+          Erro ao buscar hot ranking. Verifique se o jogo já começou.
+        </div>
+      )}
+      {error === 'analysis_error' && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400 text-sm mb-6">
+          Erro ao buscar análise completa. Tente novamente.
         </div>
       )}
 
@@ -352,7 +380,16 @@ export default function LivePage() {
               </p>
 
               {ranking.ranking.length === 0 ? (
-                <p className="text-slate-500 text-sm">Nenhum jogador com dados suficientes ainda.</p>
+                <div className="py-4">
+                  <p className="text-yellow-400 font-semibold text-sm mb-1">
+                    ⚠️ Médias de temporada indisponíveis
+                  </p>
+                  <p className="text-slate-500 text-xs leading-relaxed">
+                    O <strong className="text-slate-400">stats.nba.com</strong> está bloqueando as requisições no momento.
+                    Isso é temporário e costuma resolver durante os jogos ao vivo.
+                    Tente novamente em alguns minutos.
+                  </p>
+                </div>
               ) : (
                 <>
                   <TeamRankingGroup

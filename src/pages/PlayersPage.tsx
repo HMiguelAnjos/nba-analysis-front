@@ -84,8 +84,13 @@ export default function PlayersPage() {
         setGameStats(g.data)
       })
       .catch((err) => {
-        const msg = err?.response?.data?.detail || err?.message || String(err)
-        setError(`Erro ao buscar dados: ${msg}`)
+        const status = err?.response?.status
+        if (status === 502 || status === 504) {
+          setError('stats_blocked')
+        } else {
+          const msg = err?.response?.data?.detail || err?.message || String(err)
+          setError(`Erro ao buscar dados: ${msg}`)
+        }
       })
       .finally(() => setLoadingStats(false))
   }, [player, season])
@@ -200,8 +205,17 @@ export default function PlayersPage() {
 
       {/* Error */}
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400 mb-6 text-sm">
-          {error}
+        <div className={`rounded-xl p-4 mb-6 text-sm ${error === 'stats_blocked' ? 'bg-yellow-500/10 border border-yellow-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
+          {error === 'stats_blocked' ? (
+            <>
+              <p className="text-yellow-400 font-semibold mb-1">⚠️ API de estatísticas da NBA indisponível no momento</p>
+              <p className="text-yellow-400/70 text-xs leading-relaxed">
+                O <strong>stats.nba.com</strong> está bloqueando requisições automáticas agora. Isso é temporário e costuma resolver durante os jogos ao vivo. Tente novamente em alguns minutos.
+              </p>
+            </>
+          ) : (
+            <span className="text-red-400">{error}</span>
+          )}
         </div>
       )}
 
