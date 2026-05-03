@@ -30,11 +30,11 @@ interface DecisionCfg {
 }
 
 const DECISION: Record<Decision, DecisionCfg> = {
-  STRONG_OVER:  { label: 'STRONG OVER',  emoji: '🎯', bannerBg: 'bg-emerald-600/40', bannerText: 'text-emerald-200', borderLeft: 'border-l-4 border-l-emerald-500' },
-  LEAN_OVER:    { label: 'LEAN OVER',    emoji: '✅', bannerBg: 'bg-green-600/20',   bannerText: 'text-green-300',   borderLeft: 'border-l-4 border-l-green-500'   },
-  NEUTRAL:      { label: 'NEUTRAL',      emoji: '👀', bannerBg: 'bg-slate-700/40',   bannerText: 'text-slate-400',   borderLeft: 'border-l-4 border-l-slate-600'   },
-  LEAN_UNDER:   { label: 'LEAN UNDER',   emoji: '⛔', bannerBg: 'bg-red-600/20',    bannerText: 'text-red-300',     borderLeft: 'border-l-4 border-l-red-500'     },
-  STRONG_UNDER: { label: 'STRONG UNDER', emoji: '❌', bannerBg: 'bg-red-800/30',    bannerText: 'text-red-200',     borderLeft: 'border-l-4 border-l-red-700'     },
+  STRONG_OVER:  { label: 'APOSTAR FORTE', emoji: '🔥', bannerBg: 'bg-emerald-600/40', bannerText: 'text-emerald-200', borderLeft: 'border-l-4 border-l-emerald-500' },
+  LEAN_OVER:    { label: 'APOSTAR',       emoji: '✅', bannerBg: 'bg-green-600/20',   bannerText: 'text-green-300',   borderLeft: 'border-l-4 border-l-green-500'   },
+  NEUTRAL:      { label: 'OBSERVAR',      emoji: '👀', bannerBg: 'bg-slate-700/40',   bannerText: 'text-slate-400',   borderLeft: 'border-l-4 border-l-slate-600'   },
+  LEAN_UNDER:   { label: 'EVITAR',        emoji: '⚠️', bannerBg: 'bg-red-600/20',    bannerText: 'text-red-300',     borderLeft: 'border-l-4 border-l-red-500'     },
+  STRONG_UNDER: { label: 'EVITAR FORTE',  emoji: '❌', bannerBg: 'bg-red-800/30',    bannerText: 'text-red-200',     borderLeft: 'border-l-4 border-l-red-700'     },
 }
 
 function getDecision(score: number, pointsDiff: number): Decision {
