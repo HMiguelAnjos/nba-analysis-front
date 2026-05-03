@@ -45,6 +45,51 @@ function getDecision(score: number, pointsDiff: number): Decision {
   return 'STRONG_UNDER'
 }
 
+// ─── Per-stat decision (PTS / REB / AST tabs) ─────────────────────────────────
+
+type StatTab = 'GERAL' | 'PTS' | 'REB' | 'AST'
+
+const TAB_LABELS: Record<StatTab, string> = {
+  GERAL: 'Geral',
+  PTS:   'Pontos',
+  REB:   'Rebotes',
+  AST:   'Assistências',
+}
+
+const TAB_COLORS: Record<StatTab, string> = {
+  GERAL: 'bg-slate-600 text-white',
+  PTS:   'bg-orange-500 text-white',
+  REB:   'bg-violet-500 text-white',
+  AST:   'bg-sky-500 text-white',
+}
+
+// Pontos têm desvios maiores em valor absoluto que rebotes/assistências,
+// então cada mercado tem seus próprios limiares de "forte" e "leve".
+function getDecisionForStat(p: HotRankingPlayer, tab: StatTab): Decision {
+  if (tab === 'GERAL') return getDecision(p.score, p.points_diff)
+
+  let diff = 0
+  let strong = 0
+  let lean = 0
+  if (tab === 'PTS') { diff = p.points_diff;   strong = 4;   lean = 1.5 }
+  if (tab === 'REB') { diff = p.rebounds_diff; strong = 2.5; lean = 1   }
+  if (tab === 'AST') { diff = p.assists_diff;  strong = 2.5; lean = 1   }
+
+  if (diff >  strong) return 'STRONG_OVER'
+  if (diff >  lean)   return 'LEAN_OVER'
+  if (diff > -lean)   return 'NEUTRAL'
+  if (diff > -strong) return 'LEAN_UNDER'
+  return 'STRONG_UNDER'
+}
+
+// Valor numérico para ordenar/agrupar dentro de cada aba.
+function getStatValue(p: HotRankingPlayer, tab: StatTab): number {
+  if (tab === 'GERAL') return p.score
+  if (tab === 'PTS')   return p.points_diff
+  if (tab === 'REB')   return p.rebounds_diff
+  return p.assists_diff
+}
+
 // ─── Auto-insight ─────────────────────────────────────────────────────────────
 
 function autoInsight(p: HotRankingPlayer): string {
@@ -135,10 +180,38 @@ function StatBar({
 
 // ─── Player Card ──────────────────────────────────────────────────────────────
 
-function PlayerCard({ p, compact }: { p: HotRankingPlayer; compact: boolean }) {
-  const decision = getDecision(p.score, p.points_diff)
+// Mini-pill mostrando a decisão para um stat específico (PTS/REB/AST).
+// Aparece ao lado da barra na aba GERAL, ajudando a ver de relance em qual
+// mercado o jogador está forte/fraco.
+function MiniDecisionPill({ tab, decision }: { tab: 'PTS' | 'REB' | 'AST'; decision: Decision }) {
+  const cfg = DECISION[decision]
+  return (
+    <span
+      className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${cfg.bannerBg} ${cfg.bannerText} shrink-0`}
+      title={`${tab}: ${cfg.label}`}
+    >
+      {cfg.emoji}
+    </span>
+  )
+}
+
+function PlayerCard({
+  p, compact, activeTab,
+}: {
+  p: HotRankingPlayer
+  compact: boolean
+  activeTab: StatTab
+}) {
+  const decision = getDecisionForStat(p, activeTab)
   const cfg = DECISION[decision]
   const insight = autoInsight(p)
+  const value = getStatValue(p, activeTab)
+
+  // Per-stat decisions são úteis na aba GERAL, onde a banner mostra um
+  // resumo composto e o usuário quer enxergar mercado a mercado.
+  const ptsDecision = getDecisionForStat(p, 'PTS')
+  const rebDecision = getDecisionForStat(p, 'REB')
+  const astDecision = getDecisionForStat(p, 'AST')
 
   return (
     <div className={`bg-slate-800 rounded-xl overflow-hidden border border-slate-700/60 hover:border-slate-600 transition-colors ${cfg.borderLeft}`}>
@@ -146,9 +219,12 @@ function PlayerCard({ p, compact }: { p: HotRankingPlayer; compact: boolean }) {
       <div className={`px-4 py-2.5 flex items-center justify-between ${cfg.bannerBg}`}>
         <span className={`text-sm font-black tracking-widest uppercase ${cfg.bannerText}`}>
           {cfg.emoji} {cfg.label}
+          {activeTab !== 'GERAL' && (
+            <span className="ml-2 text-[10px] font-semibold opacity-70">· {TAB_LABELS[activeTab]}</span>
+          )}
         </span>
         <span className="text-slate-500 text-xs font-mono">
-          score {p.score > 0 ? '+' : ''}{p.score.toFixed(1)}
+          {activeTab === 'GERAL' ? 'score' : 'Δ'} {value > 0 ? '+' : ''}{value.toFixed(1)}
         </span>
       </div>
 
@@ -165,11 +241,29 @@ function PlayerCard({ p, compact }: { p: HotRankingPlayer; compact: boolean }) {
         {/* Stat bars */}
         <div className="space-y-2 mb-1">
           {!compact && (
-            <p className="text-xs text-slate-600 mb-1.5">Atual vs. esperado para {p.minutes} min</p>
+            <p className="text-xs text-slate-600 mb-1.5">
+              Atual vs. esperado para {p.minutes} min
+              {activeTab === 'GERAL' && <span className="ml-1 text-slate-700">· decisão por mercado ao lado</span>}
+            </p>
           )}
-          <StatBar label="PTS" actual={p.current_points}   expected={p.expected_points}   diff={p.points_diff}   compact={compact} />
-          <StatBar label="AST" actual={p.current_assists}  expected={p.expected_assists}  diff={p.assists_diff}  compact={compact} />
-          <StatBar label="REB" actual={p.current_rebounds} expected={p.expected_rebounds} diff={p.rebounds_diff} compact={compact} />
+          <div className="flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <StatBar label="PTS" actual={p.current_points} expected={p.expected_points} diff={p.points_diff} compact={compact} />
+            </div>
+            {activeTab === 'GERAL' && <MiniDecisionPill tab="PTS" decision={ptsDecision} />}
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <StatBar label="AST" actual={p.current_assists} expected={p.expected_assists} diff={p.assists_diff} compact={compact} />
+            </div>
+            {activeTab === 'GERAL' && <MiniDecisionPill tab="AST" decision={astDecision} />}
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <StatBar label="REB" actual={p.current_rebounds} expected={p.expected_rebounds} diff={p.rebounds_diff} compact={compact} />
+            </div>
+            {activeTab === 'GERAL' && <MiniDecisionPill tab="REB" decision={rebDecision} />}
+          </div>
         </div>
 
         {/* Full-game projection */}
@@ -202,18 +296,38 @@ function PlayerCard({ p, compact }: { p: HotRankingPlayer; compact: boolean }) {
 // ─── Team Ranking Group ───────────────────────────────────────────────────────
 
 function TeamRankingGroup({
-  tricode, teamName, players, compact,
+  tricode, teamName, players, compact, activeTab,
 }: {
   tricode: string
   teamName: string
   players: HotRankingPlayer[]
   compact: boolean
+  activeTab: StatTab
 }) {
   if (players.length === 0) return null
 
-  const highValue = players.filter(p => p.score >= 3)
-  const lowValue  = players.filter(p => p.score <= -3)
-  const neutral   = players.filter(p => p.score > -3 && p.score < 3)
+  // Classifica cada jogador pela decisão da aba ativa.
+  const isOver  = (p: HotRankingPlayer) => {
+    const d = getDecisionForStat(p, activeTab)
+    return d === 'STRONG_OVER' || d === 'LEAN_OVER'
+  }
+  const isUnder = (p: HotRankingPlayer) => {
+    const d = getDecisionForStat(p, activeTab)
+    return d === 'STRONG_UNDER' || d === 'LEAN_UNDER'
+  }
+
+  const highValue = players.filter(isOver)
+  const lowValue  = players.filter(isUnder)
+  const neutral   = players.filter(p => !isOver(p) && !isUnder(p))
+
+  // Ordena cada grupo pelo desvio do mercado ativo.
+  const byValueDesc = (a: HotRankingPlayer, b: HotRankingPlayer) =>
+    getStatValue(b, activeTab) - getStatValue(a, activeTab)
+  const byValueAsc  = (a: HotRankingPlayer, b: HotRankingPlayer) =>
+    getStatValue(a, activeTab) - getStatValue(b, activeTab)
+  highValue.sort(byValueDesc)
+  neutral.sort(byValueDesc)
+  lowValue.sort(byValueAsc)
 
   const hasGroups = highValue.length > 0 || lowValue.length > 0
 
@@ -236,7 +350,7 @@ function TeamRankingGroup({
             <div className="flex-1 h-px bg-emerald-500/20" />
           </div>
           <div className="space-y-2">
-            {highValue.map(p => <PlayerCard key={p.player_id} p={p} compact={compact} />)}
+            {highValue.map(p => <PlayerCard key={p.player_id} p={p} compact={compact} activeTab={activeTab} />)}
           </div>
         </div>
       )}
@@ -251,7 +365,7 @@ function TeamRankingGroup({
             </div>
           )}
           <div className="space-y-2">
-            {neutral.map(p => <PlayerCard key={p.player_id} p={p} compact={compact} />)}
+            {neutral.map(p => <PlayerCard key={p.player_id} p={p} compact={compact} activeTab={activeTab} />)}
           </div>
         </div>
       )}
@@ -264,7 +378,7 @@ function TeamRankingGroup({
             <div className="flex-1 h-px bg-red-500/20" />
           </div>
           <div className="space-y-2">
-            {lowValue.map(p => <PlayerCard key={p.player_id} p={p} compact={compact} />)}
+            {lowValue.map(p => <PlayerCard key={p.player_id} p={p} compact={compact} activeTab={activeTab} />)}
           </div>
         </div>
       )}
@@ -335,6 +449,7 @@ export default function LivePage() {
   const [loadingAnalysis, setLoadingAnalysis] = useState(false)
   const [error, setError]                 = useState<string | null>(null)
   const [compact, setCompact]             = useState(false)
+  const [activeTab, setActiveTab]         = useState<StatTab>('GERAL')
 
   useEffect(() => {
     setLoadingGames(true)
@@ -476,11 +591,13 @@ export default function LivePage() {
           {ranking && (
             <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-5 mb-6">
               {/* Header */}
-              <div className="flex items-center justify-between mb-1 flex-wrap gap-3">
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
                 <div>
                   <h4 className="text-white font-bold text-lg">🔥 Terminal de Apostas</h4>
                   <p className="text-slate-500 text-xs mt-0.5">
-                    Jogadores ordenados por desvio vs. média da temporada proporcional ao tempo
+                    {activeTab === 'GERAL'
+                      ? 'Visão geral — desempenho composto de cada jogador'
+                      : `Foco no mercado de ${TAB_LABELS[activeTab].toLowerCase()} — recomendação por linha`}
                   </p>
                 </div>
                 {/* Compact toggle */}
@@ -496,9 +613,29 @@ export default function LivePage() {
                 </button>
               </div>
 
+              {/* Stat tabs */}
+              <div className="flex items-center gap-2 flex-wrap mb-4">
+                {(Object.keys(TAB_LABELS) as StatTab[]).map(tab => {
+                  const active = activeTab === tab
+                  return (
+                    <button
+                      key={tab}
+                      onClick={() => setActiveTab(tab)}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+                        active
+                          ? TAB_COLORS[tab]
+                          : 'bg-slate-800 text-slate-400 border border-slate-700 hover:text-slate-200 hover:border-slate-600'
+                      }`}
+                    >
+                      {TAB_LABELS[tab]}
+                    </button>
+                  )
+                })}
+              </div>
+
               {/* Decision legend */}
               {!compact && (
-                <div className="flex items-center gap-2 flex-wrap mt-3 mb-4 p-3 bg-slate-700/30 rounded-lg border border-slate-700/50">
+                <div className="flex items-center gap-2 flex-wrap mb-4 p-3 bg-slate-700/30 rounded-lg border border-slate-700/50">
                   <span className="text-xs text-slate-500 mr-1">Leitura:</span>
                   {(Object.entries(DECISION) as [Decision, DecisionCfg][]).map(([key, d]) => (
                     <span key={key} className={`text-xs px-2 py-0.5 rounded font-semibold ${d.bannerBg} ${d.bannerText}`}>
@@ -526,12 +663,14 @@ export default function LivePage() {
                     teamName={selectedGame.away_team.name}
                     players={ranking.ranking.filter(p => p.team === selectedGame.away_team.tricode)}
                     compact={compact}
+                    activeTab={activeTab}
                   />
                   <TeamRankingGroup
                     tricode={selectedGame.home_team.tricode}
                     teamName={selectedGame.home_team.name}
                     players={ranking.ranking.filter(p => p.team === selectedGame.home_team.tricode)}
                     compact={compact}
+                    activeTab={activeTab}
                   />
                 </>
               )}
