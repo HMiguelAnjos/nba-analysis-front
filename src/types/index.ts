@@ -58,6 +58,8 @@ export interface LiveGame {
   game_status: string
   period: number
   clock: string
+  /** ISO 8601 UTC. Front converte pro timezone local do usuário. */
+  game_time_utc?: string | null
   home_team: LiveTeam
   away_team: LiveTeam
 }

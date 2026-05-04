@@ -702,10 +702,45 @@ const STATUS_LABEL: Record<string, string> = {
   hot: 'Em chamas', above_average: 'Acima', normal: 'Normal', below_average: 'Abaixo', cold: 'Frio',
 }
 
+// Formata horário UTC pro fuso local do usuário ("21:00", "9:00 PM", etc.
+// dependendo do locale do navegador). Retorna string vazia se inválido.
+function formatLocalGameTime(utcIso: string | null | undefined): string {
+  if (!utcIso) return ''
+  const date = new Date(utcIso)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,  // 24h em pt-BR; em locales en-US o navegador override
+  }).format(date)
+}
+
+// Detecta se o início do jogo é noutro dia (raro, mas acontece em jogos
+// de horário tarde — visualmente útil mostrar "amanhã").
+function gameDayHint(utcIso: string | null | undefined): string {
+  if (!utcIso) return ''
+  const date = new Date(utcIso)
+  if (Number.isNaN(date.getTime())) return ''
+  const today = new Date()
+  const tomorrow = new Date(today)
+  tomorrow.setDate(today.getDate() + 1)
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  if (sameDay(date, today)) return ''
+  if (sameDay(date, tomorrow)) return ' (amanhã)'
+  if (date < today) return ' (ontem)'
+  return ''
+}
+
 // ─── Game Card ────────────────────────────────────────────────────────────────
 
 function GameCard({ game, selected, onClick }: { game: LiveGame; selected: boolean; onClick: () => void }) {
-  const live = game.game_status === 'in_progress'
+  const live      = game.game_status === 'in_progress'
+  const upcoming  = game.game_status === 'not_started'
+  const localTime = formatLocalGameTime(game.game_time_utc)
+  const dayHint   = gameDayHint(game.game_time_utc)
   return (
     <button
       onClick={onClick}
@@ -713,12 +748,19 @@ function GameCard({ game, selected, onClick }: { game: LiveGame; selected: boole
         selected ? 'border-orange-500 shadow-lg shadow-orange-500/10' : 'border-slate-700 hover:border-slate-500'
       }`}
     >
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
         <span className={`text-xs font-medium ${live ? 'text-green-400' : 'text-slate-500'}`}>
           {live && '🔴 '}
           {STATUS_LABELS[game.game_status] ?? game.game_status}
           {live && ` · Q${game.period} ${game.clock}`}
         </span>
+        {/* Horário do jogo, formatado no timezone do usuário.
+            Mostra em "Não iniciado" e (mais discreto) em "Finalizado". */}
+        {localTime && !live && (
+          <span className="text-xs text-slate-400 font-medium">
+            🕐 {localTime}{upcoming && dayHint}
+          </span>
+        )}
       </div>
       <div className="flex items-center justify-between">
         <div className="text-center flex-1">
@@ -981,6 +1023,12 @@ export default function LivePage() {
                 {selectedGame.game_status === 'in_progress'
                   ? `🔴 Ao vivo · Q${selectedGame.period} ${selectedGame.clock}`
                   : STATUS_LABELS[selectedGame.game_status]}
+                {selectedGame.game_status === 'not_started' && formatLocalGameTime(selectedGame.game_time_utc) && (
+                  <span className="text-slate-400 ml-2">
+                    🕐 {formatLocalGameTime(selectedGame.game_time_utc)}
+                    {gameDayHint(selectedGame.game_time_utc)}
+                  </span>
+                )}
               </p>
             </div>
           </div>
