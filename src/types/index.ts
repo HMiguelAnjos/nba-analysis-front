@@ -87,6 +87,9 @@ export interface HotRankingPlayer {
   pace_projection_points: PaceProjection
   pace_projection_assists: PaceProjection
   pace_projection_rebounds: PaceProjection
+  fouls: number
+  foul_trouble: boolean
+  blowout_risk: boolean
   status: string
   score: number
 }

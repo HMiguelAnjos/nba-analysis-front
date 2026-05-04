@@ -364,7 +364,25 @@ function PlayerCard({
       <div className="p-4">
         {/* Player name + minutes context */}
         <div className="mb-2">
-          <h4 className="text-white font-bold text-base leading-tight">{p.name}</h4>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h4 className="text-white font-bold text-base leading-tight">{p.name}</h4>
+            {p.foul_trouble && (
+              <span
+                className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-500/15 text-red-300 border border-red-500/30"
+                title={`${p.fouls} faltas — risco de banco / fouling out. Projeção foi reduzida.`}
+              >
+                ⚠️ {p.fouls} faltas
+              </span>
+            )}
+            {p.blowout_risk && (
+              <span
+                className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30"
+                title="Placar aberto: titulares costumam sentar antes do fim. Projeção foi reduzida."
+              >
+                🪑 Blowout
+              </span>
+            )}
+          </div>
           <p className="text-slate-500 text-xs mt-0.5">{p.team} · {p.minutes} min jogados</p>
         </div>
 
@@ -422,6 +440,15 @@ function PlayerCard({
               Considera os minutos típicos do jogador (já com descansos).
               Margem ± diminui conforme o jogo avança.
             </p>
+            {(p.foul_trouble || p.blowout_risk) && (
+              <p className="text-amber-400/80 text-[10px] mt-1 leading-snug">
+                {p.foul_trouble && p.blowout_risk
+                  ? 'Projeção reduzida: foul trouble + blowout iminente.'
+                  : p.foul_trouble
+                  ? `Projeção reduzida: ${p.fouls} faltas aumentam risco de banco.`
+                  : 'Projeção reduzida: placar aberto, titulares tendem a sentar antes.'}
+              </p>
+            )}
           </div>
         )}
       </div>
