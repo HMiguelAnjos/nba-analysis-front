@@ -7,6 +7,7 @@ import type {
   TodayGames,
   HotRanking,
   LiveGameAnalysis,
+  LineupGame,
 } from '../types'
 
 const runtimeApiUrl = (
@@ -85,4 +86,7 @@ export const api = {
     client.get<LiveGameAnalysis>(`/games/${gameId}/live-analysis`, {
       params: { season },
     }),
+
+  getLineup: (gameId: string) =>
+    client.get<LineupGame>(`/games/${gameId}/lineups`),
 }

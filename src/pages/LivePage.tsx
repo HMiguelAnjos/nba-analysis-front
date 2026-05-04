@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../services/api'
+import { PlayerAvatar, playerPhotoUrl } from '../components/PlayerAvatar'
 import type { TodayGames, LiveGame, HotRanking, LiveGameAnalysis, HotRankingPlayer } from '../types'
 
 function getCurrentSeason(): string {
@@ -363,7 +364,14 @@ function PlayerCard({
 
       <div className="p-4">
         {/* Player name + minutes context */}
-        <div className="mb-2">
+        <div className="mb-2 flex items-start gap-3">
+          <PlayerAvatar
+            photoUrl={playerPhotoUrl(p.player_id)}
+            name={p.name}
+            size={40}
+            ringClassName={p.on_court ? 'ring-2 ring-emerald-500' : 'ring-1 ring-slate-700'}
+          />
+          <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h4 className="text-white font-bold text-base leading-tight">{p.name}</h4>
             {p.foul_trouble && (
@@ -392,6 +400,7 @@ function PlayerCard({
             )}
           </div>
           <p className="text-slate-500 text-xs mt-0.5">{p.team} · {p.minutes} min jogados</p>
+          </div>
         </div>
 
         {/* Auto-insight */}
@@ -482,6 +491,15 @@ function OpportunityRow({ o }: { o: BettingOpportunity }) {
       >
         {cfg.emoji} {direction}
       </span>
+
+      {/* Avatar mini do jogador (foto da NBA CDN; fallback de iniciais) */}
+      <PlayerAvatar
+        photoUrl={playerPhotoUrl(o.player.player_id)}
+        name={o.player.name}
+        size={32}
+        ringClassName={o.player.on_court ? 'ring-2 ring-emerald-500' : 'ring-1 ring-slate-700'}
+        className="mt-0.5 hidden sm:block"
+      />
 
       {/* Player + market + stats */}
       <div className="flex-1 min-w-0">

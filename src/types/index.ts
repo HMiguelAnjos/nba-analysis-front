@@ -109,6 +109,58 @@ export interface HotRanking {
   ranking: HotRankingPlayer[]
 }
 
+// ─── Lineups ────────────────────────────────────────────────────────────────
+
+export interface LineupPlayer {
+  player_id: number
+  name: string
+  jersey_num: string
+  position: string
+  is_starter: boolean
+  is_on_court: boolean
+  played: boolean
+  status: string                  // "ACTIVE" | "INACTIVE"
+  not_playing_reason: string | null
+  photo_url: string
+  minutes: number
+  points: number
+  rebounds: number
+  assists: number
+  steals: number
+  blocks: number
+  turnovers: number
+  fouls: number
+  field_goals_made: number
+  field_goals_attempted: number
+  three_pointers_made: number
+  three_pointers_attempted: number
+  free_throws_made: number
+  free_throws_attempted: number
+  plus_minus: number
+  performance_rating: number      // 0–10
+  performance_label: string       // Excelente | Bom | Regular | Ruim | N/A
+  low_confidence: boolean         // <10 min jogados
+}
+
+export interface LineupTeam {
+  team_id: number
+  name: string
+  tricode: string
+  score: number
+  starters: LineupPlayer[]
+  bench: LineupPlayer[]
+  inactive: LineupPlayer[]
+}
+
+export interface LineupGame {
+  game_id: string
+  game_status: string
+  period: number
+  clock: string
+  home_team: LineupTeam
+  away_team: LineupTeam
+}
+
 export interface LiveCurrentStats {
   points: number
   rebounds: number

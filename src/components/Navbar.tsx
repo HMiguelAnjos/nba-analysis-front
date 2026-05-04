@@ -19,6 +19,16 @@ export default function Navbar() {
           Ao Vivo
         </NavLink>
         <NavLink
+          to="/elencos"
+          className={({ isActive }) =>
+            `text-sm font-medium transition-colors ${
+              isActive ? 'text-orange-400' : 'text-slate-400 hover:text-slate-200'
+            }`
+          }
+        >
+          Elencos
+        </NavLink>
+        <NavLink
           to="/jogadores"
           className={({ isActive }) =>
             `text-sm font-medium transition-colors ${
