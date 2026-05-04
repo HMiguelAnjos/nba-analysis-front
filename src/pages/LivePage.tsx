@@ -477,6 +477,22 @@ function OpportunityRow({ o }: { o: BettingOpportunity }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-white font-semibold text-sm truncate">{o.player.name}</span>
+          {o.player.foul_trouble && (
+            <span
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-300 border border-red-500/30"
+              title={`${o.player.fouls} faltas — risco de banco. Projeção foi reduzida.`}
+            >
+              ⚠️ {o.player.fouls}F
+            </span>
+          )}
+          {o.player.blowout_risk && (
+            <span
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30"
+              title="Placar aberto — titulares tendem a sentar antes do fim. Projeção foi reduzida."
+            >
+              🪑
+            </span>
+          )}
           <span className="text-slate-600 text-xs">·</span>
           <span className={`text-xs font-bold ${MARKET_BAR_COLOR[o.market]}`}>{MARKET_LABEL[o.market]}</span>
           <span className="text-slate-600 text-xs">·</span>
@@ -1048,6 +1064,9 @@ export default function LivePage() {
                     pts: r.pace_projection_points,
                     reb: r.pace_projection_rebounds,
                     ast: r.pace_projection_assists,
+                    foul_trouble: r.foul_trouble,
+                    blowout_risk: r.blowout_risk,
+                    fouls: r.fouls,
                   }]) ?? [],
                 )
 
@@ -1086,9 +1105,34 @@ export default function LivePage() {
                             const dec = getDecision(p.score, p.difference.points)
                             const dcfg = DECISION[dec]
                             const proj = projectionByPlayer.get(p.player_id)
+                            // Fallback: se ranking ainda não chegou, computa
+                            // foul_trouble localmente direto do analysis.
+                            const foulTrouble = proj?.foul_trouble ?? p.fouls >= 4
+                            const blowoutRisk = proj?.blowout_risk ?? false
+                            const fouls       = proj?.fouls ?? p.fouls
                             return (
                               <tr key={p.player_id} className="border-b border-slate-700/40 hover:bg-slate-700/30 transition-colors">
-                                <td className="px-5 py-3 text-white font-medium">{p.name}</td>
+                                <td className="px-5 py-3 text-white font-medium">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span>{p.name}</span>
+                                    {foulTrouble && (
+                                      <span
+                                        className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-300 border border-red-500/30"
+                                        title={`${fouls} faltas — risco de banco. Projeção reduzida.`}
+                                      >
+                                        ⚠️ {fouls}F
+                                      </span>
+                                    )}
+                                    {blowoutRisk && (
+                                      <span
+                                        className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30"
+                                        title="Placar aberto — titulares tendem a sentar."
+                                      >
+                                        🪑
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
                                 <td className="px-4 py-3 text-slate-400 text-center">{p.minutes}</td>
                                 <td className="px-4 py-3 text-center">
                                   <span className="text-white font-bold block">{p.current.points}</span>
