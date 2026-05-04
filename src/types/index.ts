@@ -117,6 +117,7 @@ export interface LivePlayerAnalysis {
   name: string
   team: string
   minutes: number
+  fouls: number
   current: LiveCurrentStats
   season_average: StatAverages
   expected_until_now: LiveCurrentStats
