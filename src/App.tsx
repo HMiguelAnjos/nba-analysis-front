@@ -10,7 +10,10 @@ export default function App() {
         <Navbar />
         <main className="pb-12">
           <Routes>
-            <Route path="/" element={<PlayersPage />} />
+            {/* Ao Vivo é a tela principal — concentra a maior parte do uso. */}
+            <Route path="/" element={<LivePage />} />
+            <Route path="/jogadores" element={<PlayersPage />} />
+            {/* /live mantido pra não quebrar bookmarks/links antigos. */}
             <Route path="/live" element={<LivePage />} />
           </Routes>
         </main>
