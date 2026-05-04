@@ -29,8 +29,12 @@ const normalizeApiUrl = (value?: string) => {
   return `https://${withoutLeadingSlashes}`
 }
 
+// Antes a gente usava '/api' quando runtimeApiUrl estava setado, esperando
+// que o Railway fizesse o proxy reverso. Esse proxy quebrou (502), então
+// agora chamamos a URL absoluta da API direto. CORS no backend já permite
+// isso (allow_origins inclui o domínio do front).
 const apiBaseUrl =
-  (normalizeApiUrl(runtimeApiUrl) ? '/api' : undefined) ||
+  normalizeApiUrl(runtimeApiUrl) ||
   normalizeApiUrl(import.meta.env.VITE_API_URL) ||
   'http://localhost:8000'
 
