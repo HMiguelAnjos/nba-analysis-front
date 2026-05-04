@@ -90,6 +90,7 @@ export interface HotRankingPlayer {
   fouls: number
   foul_trouble: boolean
   blowout_risk: boolean
+  on_court: boolean
   status: string
   score: number
 }
@@ -118,6 +119,7 @@ export interface LivePlayerAnalysis {
   team: string
   minutes: number
   fouls: number
+  on_court: boolean
   current: LiveCurrentStats
   season_average: StatAverages
   expected_until_now: LiveCurrentStats

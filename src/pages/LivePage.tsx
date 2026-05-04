@@ -379,7 +379,15 @@ function PlayerCard({
                 className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30"
                 title="Placar aberto: titulares costumam sentar antes do fim. Projeção foi reduzida."
               >
-                🪑 Blowout
+                💥 Blowout
+              </span>
+            )}
+            {!p.on_court && (
+              <span
+                className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-600/30 text-slate-300 border border-slate-500/40"
+                title="Jogador atualmente no banco (descansando). Stats refletem o que ele já produziu."
+              >
+                🪑 No banco
               </span>
             )}
           </div>
@@ -467,19 +475,22 @@ function OpportunityRow({ o }: { o: BettingOpportunity }) {
   const pctText = `${o.pct > 0 ? '+' : ''}${(o.pct * 100).toFixed(0)}%`
   const diffText = `${o.diff > 0 ? '+' : ''}${o.diff.toFixed(1)}`
   return (
-    <div className={`bg-slate-800 rounded-lg border border-slate-700/60 ${cfg.borderLeft} flex items-center gap-3 px-3 py-2.5`}>
-      {/* Decision pill */}
-      <span className={`text-xs font-bold tracking-wider px-2 py-1 rounded ${cfg.bannerBg} ${cfg.bannerText} shrink-0 w-28 text-center`}>
+    <div className={`bg-slate-800 rounded-lg border border-slate-700/60 ${cfg.borderLeft} flex items-start gap-2 sm:gap-3 px-3 py-2.5`}>
+      {/* Decision pill — encolhe um pouco no mobile */}
+      <span
+        className={`text-[11px] sm:text-xs font-bold tracking-wider px-1.5 sm:px-2 py-1 rounded ${cfg.bannerBg} ${cfg.bannerText} shrink-0 w-20 sm:w-28 text-center mt-0.5`}
+      >
         {cfg.emoji} {direction}
       </span>
 
-      {/* Player + market */}
+      {/* Player + market + stats */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
+        {/* Linha 1: nome + badges de risco */}
+        <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-white font-semibold text-sm truncate">{o.player.name}</span>
           {o.player.foul_trouble && (
             <span
-              className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-300 border border-red-500/30"
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-300 border border-red-500/30 shrink-0"
               title={`${o.player.fouls} faltas — risco de banco. Projeção foi reduzida.`}
             >
               ⚠️ {o.player.fouls}F
@@ -487,30 +498,45 @@ function OpportunityRow({ o }: { o: BettingOpportunity }) {
           )}
           {o.player.blowout_risk && (
             <span
-              className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30"
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0"
               title="Placar aberto — titulares tendem a sentar antes do fim. Projeção foi reduzida."
+            >
+              💥
+            </span>
+          )}
+          {!o.player.on_court && (
+            <span
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-600/30 text-slate-300 border border-slate-500/40 shrink-0"
+              title="No banco agora (descansando)."
             >
               🪑
             </span>
           )}
-          <span className="text-slate-600 text-xs">·</span>
-          <span className={`text-xs font-bold ${MARKET_BAR_COLOR[o.market]}`}>{MARKET_LABEL[o.market]}</span>
-          <span className="text-slate-600 text-xs">·</span>
-          <span className="text-slate-500 text-xs">{o.player.team}</span>
         </div>
-        <p className="text-slate-500 text-xs mt-0.5">
-          Atual <span className="text-slate-300 font-semibold">{o.current}</span>
-          <span className="text-slate-700 mx-1">·</span>
-          Esperado <span className="text-slate-400">{o.expected.toFixed(1)}</span>
-          <span className="text-slate-700 mx-1">·</span>
-          Projeção fim:{' '}
-          <span className="text-slate-300 font-semibold">{o.projected}</span>
-          <span className="text-slate-600"> ({o.projectionLow}–{o.projectionHigh})</span>
-        </p>
+
+        {/* Linha 2: mercado · time */}
+        <div className="flex items-center gap-1.5 mt-0.5 text-xs">
+          <span className={`font-bold ${MARKET_BAR_COLOR[o.market]}`}>{MARKET_LABEL[o.market]}</span>
+          <span className="text-slate-700">·</span>
+          <span className="text-slate-500">{o.player.team}</span>
+        </div>
+
+        {/* Linha 3: stats em flex-wrap — cada par fica junto, quebra com graça no mobile */}
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 mt-1 text-xs text-slate-500">
+          <span className="whitespace-nowrap">
+            Atual <span className="text-slate-300 font-semibold">{o.current}</span>
+          </span>
+          <span className="whitespace-nowrap">
+            Esp. <span className="text-slate-400">{o.expected.toFixed(1)}</span>
+          </span>
+          <span className="whitespace-nowrap">
+            Proj. <span className="text-slate-300 font-semibold">{o.projected}</span>
+          </span>
+        </div>
       </div>
 
       {/* Magnitude */}
-      <div className="text-right shrink-0">
+      <div className="text-right shrink-0 mt-0.5">
         <p className={`text-sm font-bold ${o.pct > 0 ? 'text-green-400' : 'text-red-400'}`}>{pctText}</p>
         <p className="text-slate-600 text-xs">{diffText}</p>
       </div>
@@ -981,7 +1007,7 @@ export default function LivePage() {
                         title={tip}
                         className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${styles}`}
                       >
-                        🪑 {label}
+                        💥 {label}
                       </button>
                     )
                   })()}
@@ -1180,6 +1206,14 @@ export default function LivePage() {
                                       <span
                                         className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30"
                                         title="Placar aberto — titulares tendem a sentar."
+                                      >
+                                        💥
+                                      </span>
+                                    )}
+                                    {!p.on_court && (
+                                      <span
+                                        className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-600/30 text-slate-300 border border-slate-500/40"
+                                        title="No banco agora (descansando)."
                                       >
                                         🪑
                                       </span>
