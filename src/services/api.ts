@@ -61,7 +61,7 @@ export const api = {
 
   getTodayGames: () => client.get<TodayGames>('/games/live/today'),
 
-  getHotRanking: (gameId: string, season: string, limit = 10) =>
+  getHotRanking: (gameId: string, season: string, limit = 50) =>
     client.get<HotRanking>(`/games/${gameId}/live-hot-ranking`, {
       params: { season, limit },
     }),

@@ -731,7 +731,7 @@ export default function LivePage() {
 
     setLoadingRanking(true)
     try {
-      const r = await api.getHotRanking(game.game_id, season, 10)
+      const r = await api.getHotRanking(game.game_id, season, 50)
       setRanking(r.data)
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status
@@ -744,6 +744,47 @@ export default function LivePage() {
       setLoadingRanking(false)
     }
   }
+
+  // Auto-refresh do ranking a cada 10s enquanto o jogo está rolando.
+  // Reaproveita o cache do worker no backend (boxscore TTL 15s, médias 24h),
+  // então o custo é ~1 request leve a cada 10s, sem ficar na ScraperAPI.
+  // Falhas silenciosas: mantém os últimos dados bons e tenta de novo.
+  useEffect(() => {
+    if (!selectedGame || selectedGame.game_status !== 'in_progress') return
+
+    const tick = async () => {
+      try {
+        const r = await api.getHotRanking(selectedGame.game_id, season, 50)
+        setRanking(r.data)
+      } catch {
+        // intencional: erro transitório não derruba o último snapshot bom
+      }
+    }
+    const id = setInterval(tick, 10_000)
+    return () => clearInterval(id)
+  }, [selectedGame, season])
+
+  // Auto-refresh da Análise Completa também, pra manter as projeções da
+  // tabela alinhadas com o ranking (que tem polling acima).
+  // Depende de hasAnalysis (boolean) em vez de analysis pra não resetar o
+  // timer a cada tick — mantém cadência estável de 30s.
+  const hasAnalysis = analysis !== null
+  useEffect(() => {
+    if (!selectedGame || selectedGame.game_status !== 'in_progress') return
+    if (!hasAnalysis) return
+
+    const tick = async () => {
+      try {
+        const r = await api.getLiveAnalysis(selectedGame.game_id, season)
+        setAnalysis(r.data)
+      } catch {
+        // mantém último snapshot bom
+      }
+    }
+    // Análise é mais pesada (12+ chamadas em paralelo no backend) — cadência maior.
+    const id = setInterval(tick, 30_000)
+    return () => clearInterval(id)
+  }, [selectedGame, season, hasAnalysis])
 
   const loadAnalysis = async () => {
     if (!selectedGame) return
@@ -991,6 +1032,8 @@ export default function LivePage() {
                 )}
               </div>
 
+              {/* Mapeia projeções do hot ranking por player_id pra enriquecer
+                  cada linha com a projeção até o fim do jogo. */}
               {[
                 { tricode: selectedGame.away_team.tricode, name: selectedGame.away_team.name },
                 { tricode: selectedGame.home_team.tricode, name: selectedGame.home_team.name },
@@ -999,6 +1042,15 @@ export default function LivePage() {
                   .filter(p => p.team === tricode)
                   .sort((a, b) => b.score - a.score)
                 if (teamPlayers.length === 0) return null
+
+                const projectionByPlayer = new Map(
+                  ranking?.ranking.map(r => [r.player_id, {
+                    pts: r.pace_projection_points,
+                    reb: r.pace_projection_rebounds,
+                    ast: r.pace_projection_assists,
+                  }]) ?? [],
+                )
+
                 return (
                   <div key={tricode}>
                     <div className="flex items-center gap-2 px-5 py-3 bg-slate-700/30 border-b border-slate-700">
@@ -1014,13 +1066,16 @@ export default function LivePage() {
                             <th className="text-left px-5 py-2.5">Jogador</th>
                             <th className="text-center px-4 py-2.5">Min</th>
                             <th className="text-center px-4 py-2.5">
-                              PTS<br/><span className="text-slate-600 font-normal">Esp.</span>
+                              PTS<br/>
+                              <span className="text-slate-600 font-normal">Esp. · Proj. fim</span>
                             </th>
                             <th className="text-center px-4 py-2.5">
-                              REB<br/><span className="text-slate-600 font-normal">Esp.</span>
+                              REB<br/>
+                              <span className="text-slate-600 font-normal">Esp. · Proj. fim</span>
                             </th>
                             <th className="text-center px-4 py-2.5">
-                              AST<br/><span className="text-slate-600 font-normal">Esp.</span>
+                              AST<br/>
+                              <span className="text-slate-600 font-normal">Esp. · Proj. fim</span>
                             </th>
                             <th className="text-center px-4 py-2.5">Status</th>
                             <th className="text-center px-4 py-2.5">Decisão</th>
@@ -1030,21 +1085,31 @@ export default function LivePage() {
                           {teamPlayers.map(p => {
                             const dec = getDecision(p.score, p.difference.points)
                             const dcfg = DECISION[dec]
+                            const proj = projectionByPlayer.get(p.player_id)
                             return (
                               <tr key={p.player_id} className="border-b border-slate-700/40 hover:bg-slate-700/30 transition-colors">
                                 <td className="px-5 py-3 text-white font-medium">{p.name}</td>
                                 <td className="px-4 py-3 text-slate-400 text-center">{p.minutes}</td>
                                 <td className="px-4 py-3 text-center">
                                   <span className="text-white font-bold block">{p.current.points}</span>
-                                  <span className="text-slate-500 text-xs">{p.expected_until_now.points}</span>
+                                  <span className="text-slate-500 text-xs">
+                                    {p.expected_until_now.points}
+                                    {proj && <span className="text-orange-300/80 font-semibold"> · {proj.pts.expected}</span>}
+                                  </span>
                                 </td>
                                 <td className="px-4 py-3 text-center">
                                   <span className="text-white font-bold block">{p.current.rebounds}</span>
-                                  <span className="text-slate-500 text-xs">{p.expected_until_now.rebounds}</span>
+                                  <span className="text-slate-500 text-xs">
+                                    {p.expected_until_now.rebounds}
+                                    {proj && <span className="text-violet-300/80 font-semibold"> · {proj.reb.expected}</span>}
+                                  </span>
                                 </td>
                                 <td className="px-4 py-3 text-center">
                                   <span className="text-white font-bold block">{p.current.assists}</span>
-                                  <span className="text-slate-500 text-xs">{p.expected_until_now.assists}</span>
+                                  <span className="text-slate-500 text-xs">
+                                    {p.expected_until_now.assists}
+                                    {proj && <span className="text-sky-300/80 font-semibold"> · {proj.ast.expected}</span>}
+                                  </span>
                                 </td>
                                 <td className="px-4 py-3 text-center">
                                   <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[p.status]}`}>
