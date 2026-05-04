@@ -120,23 +120,31 @@ interface BettingOpportunity {
   current: number
   expected: number
   projected: number
+  projectionLow: number
+  projectionHigh: number
 }
 
 function buildOpportunities(players: HotRankingPlayer[]): BettingOpportunity[] {
   const opps: BettingOpportunity[] = []
   for (const p of players) {
     const markets: Array<{
-      m: Market; diff: number; expected: number; current: number; projected: number
+      m: Market; diff: number; expected: number; current: number;
+      projection: { low: number; expected: number; high: number };
     }> = [
-      { m: 'PTS', diff: p.points_diff,   expected: p.expected_points,   current: p.current_points,   projected: p.projected_points   },
-      { m: 'REB', diff: p.rebounds_diff, expected: p.expected_rebounds, current: p.current_rebounds, projected: p.projected_rebounds },
-      { m: 'AST', diff: p.assists_diff,  expected: p.expected_assists,  current: p.current_assists,  projected: p.projected_assists  },
+      { m: 'PTS', diff: p.points_diff,   expected: p.expected_points,   current: p.current_points,   projection: p.pace_projection_points   },
+      { m: 'REB', diff: p.rebounds_diff, expected: p.expected_rebounds, current: p.current_rebounds, projection: p.pace_projection_rebounds },
+      { m: 'AST', diff: p.assists_diff,  expected: p.expected_assists,  current: p.current_assists,  projection: p.pace_projection_assists  },
     ]
-    for (const { m, diff, expected, current, projected } of markets) {
+    for (const { m, diff, expected, current, projection } of markets) {
       const decision = getDecisionForStat(p, m)
       if (decision === 'NEUTRAL') continue
       const pct = expected > 0 ? diff / expected : 0
-      opps.push({ player: p, market: m, decision, pct, diff, current, expected, projected })
+      opps.push({
+        player: p, market: m, decision, pct, diff, current, expected,
+        projected: projection.expected,
+        projectionLow: projection.low,
+        projectionHigh: projection.high,
+      })
     }
   }
   // STRONG vem primeiro; depois ordena por |%| desviação.
@@ -253,6 +261,56 @@ function StatBar({
   )
 }
 
+// ─── Projection Pill (helper) ─────────────────────────────────────────────────
+// Pílula visual reaproveitada nos dois blocos de projeção (base + ritmo atual).
+// `emphasized` deixa a borda mais viva pra destacar a projeção pelo ritmo atual,
+// que é a leitura mais "quente"/imediata do jogo.
+
+const PILL_COLOR: Record<'orange' | 'sky' | 'violet', { bg: string; text: string; sub: string; ring: string }> = {
+  orange: { bg: 'bg-orange-500/10', text: 'text-orange-300', sub: 'text-orange-400/50', ring: 'border-orange-500/40' },
+  sky:    { bg: 'bg-sky-500/10',    text: 'text-sky-300',    sub: 'text-sky-400/50',    ring: 'border-sky-500/40'    },
+  violet: { bg: 'bg-violet-500/10', text: 'text-violet-300', sub: 'text-violet-400/50', ring: 'border-violet-500/40' },
+}
+
+function ProjectionPill({
+  color, value, label, emphasized,
+}: {
+  color: 'orange' | 'sky' | 'violet'
+  value: number
+  label: string
+  emphasized?: boolean
+}) {
+  const c = PILL_COLOR[color]
+  const border = emphasized ? c.ring : 'border-slate-700/40'
+  return (
+    <div className={`flex-1 text-center ${c.bg} rounded-lg py-2 border ${border}`}>
+      <p className={`${c.text} font-bold text-lg leading-none`}>{value}</p>
+      <p className={`${c.sub} text-xs mt-0.5`}>{label}</p>
+    </div>
+  )
+}
+
+// Pílula com projeção esperada + range (low–high) abaixo.
+// Dá ao usuário a leitura central + a faixa de incerteza num só componente.
+function RangeProjectionPill({
+  color, projection, label,
+}: {
+  color: 'orange' | 'sky' | 'violet'
+  projection: { low: number; expected: number; high: number }
+  label: string
+}) {
+  const c = PILL_COLOR[color]
+  return (
+    <div className={`flex-1 text-center ${c.bg} rounded-lg py-2 px-1 border ${c.ring}`}>
+      <p className={`${c.text} font-bold text-xl leading-none`}>{projection.expected}</p>
+      <p className={`${c.sub} text-[10px] mt-1`}>
+        {projection.low} – {projection.high}
+      </p>
+      <p className={`${c.sub} text-xs mt-0.5 font-semibold`}>{label}</p>
+    </div>
+  )
+}
+
 // ─── Player Card ──────────────────────────────────────────────────────────────
 
 // Mini-pill mostrando a decisão para um stat específico (PTS/REB/AST).
@@ -341,26 +399,29 @@ function PlayerCard({
           </div>
         </div>
 
-        {/* Full-game projection */}
+        {/* Projeção até o fim do jogo (com margem de erro) */}
         {!compact && (
           <div className="mt-3 pt-3 border-t border-slate-700/50">
-            <p className="text-xs text-slate-600 mb-2">
-              Projeção para um jogo típico (ritmo atual + média da temporada)
-            </p>
-            <div className="flex gap-2">
-              <div className="flex-1 text-center bg-orange-500/10 rounded-lg py-2 border border-orange-500/20">
-                <p className="text-orange-300 font-bold text-lg leading-none">{p.projected_points}</p>
-                <p className="text-orange-400/50 text-xs mt-0.5">PTS</p>
-              </div>
-              <div className="flex-1 text-center bg-sky-500/10 rounded-lg py-2 border border-sky-500/20">
-                <p className="text-sky-300 font-bold text-lg leading-none">{p.projected_assists}</p>
-                <p className="text-sky-400/50 text-xs mt-0.5">AST</p>
-              </div>
-              <div className="flex-1 text-center bg-violet-500/10 rounded-lg py-2 border border-violet-500/20">
-                <p className="text-violet-300 font-bold text-lg leading-none">{p.projected_rebounds}</p>
-                <p className="text-violet-400/50 text-xs mt-0.5">REB</p>
-              </div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-amber-300/80 font-semibold">
+                🎯 Projeção até o fim do jogo
+              </p>
+              <span
+                className="text-[10px] text-slate-600 cursor-help"
+                title="Estimativa final do jogador se mantiver o ritmo atual deste jogo (com pequeno ajuste pela média da temporada para estabilizar). O número grande é a projeção esperada; abaixo, a faixa mín–máx representa a margem de incerteza (cai conforme o jogo avança)."
+              >
+                ℹ️
+              </span>
             </div>
+            <div className="flex gap-2">
+              <RangeProjectionPill color="orange" projection={p.pace_projection_points}   label="PTS" />
+              <RangeProjectionPill color="sky"    projection={p.pace_projection_assists}  label="AST" />
+              <RangeProjectionPill color="violet" projection={p.pace_projection_rebounds} label="REB" />
+            </div>
+            <p className="text-slate-600 text-[10px] mt-2 italic">
+              Considera os minutos típicos do jogador (já com descansos).
+              Margem ± diminui conforme o jogo avança.
+            </p>
           </div>
         )}
       </div>
@@ -399,7 +460,9 @@ function OpportunityRow({ o }: { o: BettingOpportunity }) {
           <span className="text-slate-700 mx-1">·</span>
           Esperado <span className="text-slate-400">{o.expected.toFixed(1)}</span>
           <span className="text-slate-700 mx-1">·</span>
-          Projeção {MARKET_LABEL[o.market].toLowerCase()} jogo todo: <span className="text-slate-300 font-semibold">{o.projected}</span>
+          Projeção fim:{' '}
+          <span className="text-slate-300 font-semibold">{o.projected}</span>
+          <span className="text-slate-600"> ({o.projectionLow}–{o.projectionHigh})</span>
         </p>
       </div>
 

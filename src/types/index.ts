@@ -84,8 +84,17 @@ export interface HotRankingPlayer {
   projected_points: number
   projected_assists: number
   projected_rebounds: number
+  pace_projection_points: PaceProjection
+  pace_projection_assists: PaceProjection
+  pace_projection_rebounds: PaceProjection
   status: string
   score: number
+}
+
+export interface PaceProjection {
+  low: number
+  expected: number
+  high: number
 }
 
 export interface HotRanking {
