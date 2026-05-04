@@ -61,9 +61,20 @@ export const api = {
 
   getTodayGames: () => client.get<TodayGames>('/games/live/today'),
 
-  getHotRanking: (gameId: string, season: string, limit = 50) =>
+  getHotRanking: (
+    gameId: string,
+    season: string,
+    limit = 50,
+    considerBlowout?: boolean,
+  ) =>
     client.get<HotRanking>(`/games/${gameId}/live-hot-ranking`, {
-      params: { season, limit },
+      // Só envia consider_blowout se o usuário explicitamente quiser sobrescrever;
+      // omitir = backend auto-detecta (playoffs=off, resto=on).
+      params: {
+        season,
+        limit,
+        ...(considerBlowout !== undefined ? { consider_blowout: considerBlowout } : {}),
+      },
     }),
 
   getLiveAnalysis: (gameId: string, season: string) =>

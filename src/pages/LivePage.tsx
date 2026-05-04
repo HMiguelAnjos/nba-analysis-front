@@ -712,6 +712,15 @@ function GameCard({ game, selected, onClick }: { game: LiveGame; selected: boole
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+// Detecta jogo de playoff via game_id (NBA: '0042XXXXX' = playoffs).
+// Em playoffs, o auto-detect do backend desliga o ajuste de blowout —
+// técnicos mantêm titulares mesmo com vantagem grande (closeout, virada, etc.).
+function isPlayoffGameId(gameId: string): boolean {
+  return gameId.length >= 4 && gameId.slice(2, 4) === '04'
+}
+
+type BlowoutMode = 'auto' | 'on' | 'off'
+
 export default function LivePage() {
   const season = getCurrentSeason()
   const [todayGames, setTodayGames]       = useState<TodayGames | null>(null)
@@ -724,6 +733,12 @@ export default function LivePage() {
   const [error, setError]                 = useState<string | null>(null)
   const [compact, setCompact]             = useState(false)
   const [activeTab, setActiveTab]         = useState<StatTab>('GERAL')
+  const [blowoutMode, setBlowoutMode]     = useState<BlowoutMode>('auto')
+
+  // Converte o modo do usuário no parâmetro que vai pra API.
+  // 'auto' → undefined (backend decide); 'on' → true; 'off' → false.
+  const blowoutOverride: boolean | undefined =
+    blowoutMode === 'auto' ? undefined : blowoutMode === 'on'
 
   useEffect(() => {
     setLoadingGames(true)
@@ -747,7 +762,7 @@ export default function LivePage() {
 
     setLoadingRanking(true)
     try {
-      const r = await api.getHotRanking(game.game_id, season, 50)
+      const r = await api.getHotRanking(game.game_id, season, 50, blowoutOverride)
       setRanking(r.data)
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status
@@ -765,20 +780,24 @@ export default function LivePage() {
   // Reaproveita o cache do worker no backend (boxscore TTL 15s, médias 24h),
   // então o custo é ~1 request leve a cada 10s, sem ficar na ScraperAPI.
   // Falhas silenciosas: mantém os últimos dados bons e tenta de novo.
+  // Também re-busca imediatamente quando o usuário troca o modo de blowout
+  // (efeito disparado pela mudança em blowoutOverride).
   useEffect(() => {
     if (!selectedGame || selectedGame.game_status !== 'in_progress') return
 
     const tick = async () => {
       try {
-        const r = await api.getHotRanking(selectedGame.game_id, season, 50)
+        const r = await api.getHotRanking(selectedGame.game_id, season, 50, blowoutOverride)
         setRanking(r.data)
       } catch {
         // intencional: erro transitório não derruba o último snapshot bom
       }
     }
+    // Disparo imediato pra refletir mudança de modo sem esperar 10s.
+    tick()
     const id = setInterval(tick, 10_000)
     return () => clearInterval(id)
-  }, [selectedGame, season])
+  }, [selectedGame, season, blowoutOverride])
 
   // Auto-refresh da Análise Completa também, pra manter as projeções da
   // tabela alinhadas com o ranking (que tem polling acima).
@@ -934,17 +953,51 @@ export default function LivePage() {
                       : `Foco no mercado de ${TAB_LABELS[activeTab].toLowerCase()} — recomendação por linha`}
                   </p>
                 </div>
-                {/* Compact toggle */}
-                <button
-                  onClick={() => setCompact(c => !c)}
-                  className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-                    compact
-                      ? 'bg-orange-500/20 border-orange-500/40 text-orange-300'
-                      : 'bg-slate-700 border-slate-600 text-slate-400 hover:text-slate-300'
-                  }`}
-                >
-                  {compact ? '▦ Detalhado' : '▤ Compacto'}
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* Blowout toggle: cicla entre auto → forçar ON → forçar OFF.
+                      O label de Auto mostra o que o backend está fazendo
+                      (off em playoffs, on em temporada regular). */}
+                  {(() => {
+                    const autoConsider = !isPlayoffGameId(selectedGame.game_id)
+                    const next: BlowoutMode =
+                      blowoutMode === 'auto' ? 'on' : blowoutMode === 'on' ? 'off' : 'auto'
+                    const label =
+                      blowoutMode === 'auto' ? `Blowout: Auto (${autoConsider ? 'on' : 'off'})`
+                      : blowoutMode === 'on'   ? 'Blowout: Forçado ON'
+                      : 'Blowout: Forçado OFF'
+                    const styles =
+                      blowoutMode === 'on'  ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                      : blowoutMode === 'off' ? 'bg-slate-700 border-slate-600 text-slate-300'
+                      : 'bg-slate-800 border-slate-600 text-slate-400 hover:text-slate-300'
+                    const tip =
+                      blowoutMode === 'auto'
+                        ? 'Ativa redução por garbage time automaticamente. Desligado em playoffs.'
+                        : blowoutMode === 'on'
+                        ? 'Forçando consideração de blowout (mesmo em playoffs).'
+                        : 'Ignorando blowout — útil em jogos decisivos onde titulares ficam.'
+                    return (
+                      <button
+                        onClick={() => setBlowoutMode(next)}
+                        title={tip}
+                        className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${styles}`}
+                      >
+                        🪑 {label}
+                      </button>
+                    )
+                  })()}
+
+                  {/* Compact toggle */}
+                  <button
+                    onClick={() => setCompact(c => !c)}
+                    className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                      compact
+                        ? 'bg-orange-500/20 border-orange-500/40 text-orange-300'
+                        : 'bg-slate-700 border-slate-600 text-slate-400 hover:text-slate-300'
+                    }`}
+                  >
+                    {compact ? '▦ Detalhado' : '▤ Compacto'}
+                  </button>
+                </div>
               </div>
 
               {/* Stat tabs */}
