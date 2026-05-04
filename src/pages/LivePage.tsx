@@ -766,16 +766,37 @@ export default function LivePage() {
   const blowoutOverride: boolean | undefined =
     blowoutMode === 'auto' ? undefined : blowoutMode === 'on'
 
+  // Carrega lista de jogos do dia. Funciona tanto como mount inicial quanto
+  // como retry manual/automático. Em caso de erro, agenda auto-retry após 8s
+  // — útil em cold start do Railway, quando o worker ainda não populou o cache
+  // (retorna 503) e bastaria esperar alguns segundos.
+  const loadGames = async (showLoading = true) => {
+    if (showLoading) setLoadingGames(true)
+    try {
+      const r = await api.getTodayGames()
+      setTodayGames(r.data)
+      // Limpa o erro de games se vier do retry e tiver dado certo agora.
+      setError(prev => (prev === 'games_error' ? null : prev))
+    } catch {
+      setError('games_error')
+    } finally {
+      if (showLoading) setLoadingGames(false)
+    }
+  }
+
   useEffect(() => {
-    setLoadingGames(true)
-    api.getTodayGames()
-      .then(r => setTodayGames(r.data))
-      .catch((err) => {
-        const msg = err?.response?.data?.detail || err?.message || String(err)
-        setError(`Erro ao buscar jogos: ${msg}`)
-      })
-      .finally(() => setLoadingGames(false))
+    loadGames()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Auto-retry da lista de jogos enquanto estiver em estado de erro.
+  // Não fica retentando pra sempre — só enquanto o usuário está na página.
+  useEffect(() => {
+    if (error !== 'games_error') return
+    const id = setTimeout(() => loadGames(false), 8_000)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error])
 
   const selectGame = async (game: LiveGame) => {
     setSelectedGame(game)
@@ -896,6 +917,26 @@ export default function LivePage() {
       {error === 'analysis_error' && (
         <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400 text-sm mb-6">
           Erro ao buscar análise completa. Tente novamente.
+        </div>
+      )}
+      {error === 'games_error' && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-6 flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-amber-300 font-semibold text-sm mb-1">
+              ⚠️ Não foi possível carregar a lista de jogos
+            </p>
+            <p className="text-amber-200/70 text-xs leading-relaxed">
+              O servidor pode estar inicializando (cold start) ou sem
+              conexão com a NBA no momento. Vamos tentar novamente
+              automaticamente em alguns segundos.
+            </p>
+          </div>
+          <button
+            onClick={() => loadGames()}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-200 border border-amber-500/40 hover:bg-amber-500/30 transition-colors shrink-0"
+          >
+            🔄 Tentar agora
+          </button>
         </div>
       )}
 
