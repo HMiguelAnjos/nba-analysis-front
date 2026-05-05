@@ -103,10 +103,25 @@ export interface PaceProjection {
   high: number
 }
 
+export interface BlowoutRisk {
+  percentage: number              // 0–100
+  level: 'low' | 'medium' | 'high' | 'final'
+  reason: string
+}
+
 export interface HotRanking {
   game_id: string
   limit: number
   ranking: HotRankingPlayer[]
+  // Estado do jogo no momento do snapshot — front usa pra atualizar
+  // placar/relógio sem refazer chamada ao scoreboard.
+  game_status: string             // not_started | in_progress | final
+  period: number
+  clock: string
+  home_score: number
+  away_score: number
+  blowout_risk: BlowoutRisk
+  updated_at: string              // ISO 8601 UTC
 }
 
 // ─── Lineups ────────────────────────────────────────────────────────────────
@@ -159,6 +174,8 @@ export interface LineupGame {
   clock: string
   home_team: LineupTeam
   away_team: LineupTeam
+  blowout_risk: BlowoutRisk
+  updated_at: string
 }
 
 export interface LiveCurrentStats {

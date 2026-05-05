@@ -1,7 +1,37 @@
 import { useEffect, useState } from 'react'
 import { api } from '../services/api'
 import { PlayerAvatar } from '../components/PlayerAvatar'
-import type { LineupGame, LineupPlayer, LineupTeam, LiveGame, TodayGames } from '../types'
+import { SkeletonGameGrid, SkeletonPlayerRow } from '../components/Skeleton'
+import { EmptyState, InlineError } from '../components/States'
+import type { BlowoutRisk, LineupGame, LineupPlayer, LineupTeam, LiveGame, TodayGames } from '../types'
+
+// ─── Badge discreto de risco de blowout ────────────────────────────────────
+// Aparece só em jogos ao vivo. Em finalizados, vira "Encerrado".
+// Tooltip mostra a razão calculada no backend (período, diferença, tempo).
+function BlowoutBadge({ risk }: { risk: BlowoutRisk }) {
+  if (risk.level === 'final') {
+    return null  // o estado "encerrado" já aparece em outro lugar
+  }
+  if (risk.level === 'low' && risk.percentage <= 5) {
+    return null  // jogo equilibrado: não polui a UI
+  }
+
+  const styles = {
+    low:    'bg-slate-700/60 text-slate-300 border-slate-600',
+    medium: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+    high:   'bg-red-500/15 text-red-300 border-red-500/40',
+    final:  'bg-slate-700/60 text-slate-400 border-slate-600',
+  }[risk.level]
+
+  return (
+    <span
+      className={`text-xs font-semibold px-2.5 py-1 rounded-lg border ${styles} cursor-help select-none`}
+      title={risk.reason}
+    >
+      💥 Blowout: {risk.percentage}%
+    </span>
+  )
+}
 
 const STATUS_LABELS: Record<string, string> = {
   not_started: 'Não iniciado',
@@ -125,7 +155,7 @@ function TeamBlock({ team }: { team: LineupTeam }) {
       {startersOffCourt.length > 0 && (
         <Section
           title={onCourt.length > 0 ? 'Titulares descansando' : 'Titulares'}
-          countTone="orange"
+          countTone="amber"
           players={startersOffCourt}
         />
       )}
@@ -147,13 +177,13 @@ function Section({
   title, countTone, players, muted,
 }: {
   title: string
-  countTone: 'emerald' | 'orange' | 'slate' | 'red'
+  countTone: 'emerald' | 'amber' | 'slate' | 'red'
   players: LineupPlayer[]
   muted?: boolean
 }) {
   const tones = {
     emerald: 'text-emerald-400',
-    orange: 'text-orange-400',
+    amber: 'text-amber-300',
     slate: 'text-slate-400',
     red: 'text-red-400/70',
   }
@@ -179,19 +209,26 @@ function GameSelector({ game, selected, onClick }: { game: LiveGame; selected: b
   return (
     <button
       onClick={onClick}
-      className={`text-left bg-slate-800 rounded-xl p-3 border transition-all ${
-        selected ? 'border-orange-500 shadow-lg shadow-orange-500/10' : 'border-slate-700 hover:border-slate-500'
-      }`}
+      className={[
+        'text-left p-3 rounded-xl border w-full',
+        'transition-all duration-200 ease-out',
+        'focus:outline-none focus:ring-2 focus:ring-brand-500/40',
+        selected
+          ? 'bg-slate-800 border-brand-500 shadow-glow'
+          : 'bg-slate-800/70 border-slate-700/70 hover:border-slate-500 hover:-translate-y-0.5 shadow-soft',
+      ].join(' ')}
     >
-      <p className={`text-xs font-medium mb-2 ${live ? 'text-green-400' : 'text-slate-500'}`}>
-        {live && '🔴 '}
+      <p className={`text-xs font-medium mb-2 ${live ? 'text-brand-400' : 'text-slate-500'}`}>
+        {live && (
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand-500 mr-1.5 animate-pulse-subtle" />
+        )}
         {STATUS_LABELS[game.game_status] ?? game.game_status}
         {live && ` · Q${game.period} ${game.clock}`}
       </p>
-      <div className="flex items-center justify-between">
-        <span className="text-slate-300 font-bold">{game.away_team.tricode} {game.away_team.score}</span>
+      <div className="flex items-center justify-between tabular">
+        <span className="text-slate-200 font-bold">{game.away_team.tricode} <span className="text-slate-300">{game.away_team.score}</span></span>
         <span className="text-slate-600 text-xs px-2">@</span>
-        <span className="text-slate-300 font-bold">{game.home_team.tricode} {game.home_team.score}</span>
+        <span className="text-slate-200 font-bold">{game.home_team.tricode} <span className="text-slate-300">{game.home_team.score}</span></span>
       </div>
     </button>
   )
@@ -268,10 +305,10 @@ export default function LineupsPage() {
   }, [selectedGame])
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-7xl">
+    <div className="page">
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-white">Elencos & Quadra</h2>
+          <h2 className="text-2xl font-bold text-white tracking-tight">Elencos & Quadra</h2>
           <p className="text-slate-500 text-sm mt-1">
             Titulares, reservas e quem está em quadra agora — com nota de
             desempenho e foto oficial.
@@ -279,33 +316,24 @@ export default function LineupsPage() {
         </div>
       </div>
 
-      {/* Erro de jogos */}
       {gamesError && (
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-6 flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <p className="text-amber-300 font-semibold text-sm mb-1">⚠️ Não foi possível carregar a lista de jogos</p>
-            <p className="text-amber-200/70 text-xs leading-relaxed">
-              Tentando de novo automaticamente em alguns segundos.
-            </p>
-          </div>
-          <button
-            onClick={loadGames}
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-200 border border-amber-500/40 hover:bg-amber-500/30"
-          >
-            🔄 Tentar agora
-          </button>
-        </div>
+        <InlineError
+          title="Não foi possível carregar a lista de jogos"
+          description="Tentando de novo automaticamente em alguns segundos."
+          onRetry={loadGames}
+        />
       )}
 
       {loadingGames && !todayGames && (
-        <p className="text-slate-500 text-center py-12">Carregando jogos do dia...</p>
+        <SkeletonGameGrid count={6} />
       )}
 
       {todayGames && todayGames.games.length === 0 && (
-        <div className="text-center py-20 text-slate-600">
-          <div className="text-5xl mb-3">📅</div>
-          <p>Nenhum jogo agendado para hoje.</p>
-        </div>
+        <EmptyState
+          icon="📅"
+          title="Nenhum jogo agendado para hoje"
+          description="Volte amanhã ou confira o calendário oficial da NBA."
+        />
       )}
 
       {/* Selector de jogos */}
@@ -326,30 +354,60 @@ export default function LineupsPage() {
       {selectedGame && (
         <div className="border-t border-slate-700 pt-6">
           {selectedGame.game_status === 'not_started' && (
-            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-8 text-center">
-              <div className="text-5xl mb-4">⏰</div>
-              <p className="text-white font-semibold text-lg mb-1">Aguardando início do jogo</p>
-              <p className="text-slate-400 text-sm">
-                A escalação aparece quando o jogo começar.
-              </p>
-            </div>
+            <EmptyState
+              icon="⏰"
+              title="Aguardando início do jogo"
+              description="A escalação aparece quando a partida começar."
+            />
           )}
 
           {loadingLineup && (
-            <p className="text-slate-500 text-sm py-8 animate-pulse">⏳ Carregando elencos...</p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {[0, 1].map(i => (
+                <div key={i} className="card p-4 space-y-3">
+                  <div className="skeleton h-6 w-32" />
+                  <SkeletonPlayerRow />
+                  <SkeletonPlayerRow />
+                  <SkeletonPlayerRow />
+                  <SkeletonPlayerRow />
+                  <SkeletonPlayerRow />
+                </div>
+              ))}
+            </div>
           )}
 
           {lineupError && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400 text-sm">
-              Erro ao buscar elencos. Tente novamente.
-            </div>
+            <InlineError
+              tone="red"
+              title="Erro ao buscar elencos"
+              description="Tente novamente em alguns segundos."
+              onRetry={() => selectedGame && selectGame(selectedGame)}
+            />
           )}
 
           {lineup && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <TeamBlock team={lineup.away_team} />
-              <TeamBlock team={lineup.home_team} />
-            </div>
+            <>
+              {/* Header com placar live + risco de blowout discreto */}
+              <div className="flex items-center justify-between flex-wrap gap-3 mb-4 px-1">
+                <div className="text-sm text-slate-400">
+                  {lineup.game_status === 'in_progress' && (
+                    <span className="text-green-400 font-medium">🔴 Q{lineup.period} {lineup.clock}</span>
+                  )}
+                  {lineup.game_status === 'final' && (
+                    <span className="text-slate-400 font-medium">🏁 Encerrado</span>
+                  )}
+                  <span className="ml-3 text-slate-500">
+                    {lineup.away_team.tricode} {lineup.away_team.score} @ {lineup.home_team.tricode} {lineup.home_team.score}
+                  </span>
+                </div>
+                <BlowoutBadge risk={lineup.blowout_risk} />
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <TeamBlock team={lineup.away_team} />
+                <TeamBlock team={lineup.home_team} />
+              </div>
+            </>
           )}
         </div>
       )}

@@ -149,7 +149,7 @@ export default function PlayersPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-7xl">
+    <div className="page">
       {/* Search */}
       <div className="relative mb-6">
         <input
@@ -157,7 +157,7 @@ export default function PlayersPage() {
           value={query}
           onChange={e => setQuery(e.target.value)}
           placeholder="Buscar jogador... (ex: LeBron, Curry, Tatum)"
-          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-orange-500 transition-colors"
+          className="w-full bg-slate-800/70 border border-slate-700/70 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
         />
         {searching && (
           <span className="absolute right-4 top-3.5 text-slate-400 text-sm">Buscando...</span>
@@ -196,7 +196,7 @@ export default function PlayersPage() {
           <select
             value={season}
             onChange={e => setSeason(e.target.value)}
-            className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-orange-500"
+            className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-brand-500"
           >
             {SEASONS.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
@@ -282,7 +282,7 @@ export default function PlayersPage() {
               <button
                 onClick={loadPeriod}
                 disabled={loadingPeriod}
-                className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                className="bg-brand-500 hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
               >
                 {loadingPeriod ? 'Carregando...' : 'Carregar'}
               </button>

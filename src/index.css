@@ -2,18 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Base ───────────────────────────────────────────────────────────────── */
 :root {
   color-scheme: dark;
+  /* Stack tipográfico premium: Inter primeiro, depois SF, depois fallbacks */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+}
+
+html {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Variáveis de tabela numérica — alinha colunas de números */
+  font-feature-settings: 'cv11', 'ss01', 'tnum';
+  text-rendering: optimizeLegibility;
 }
 
 body {
   background-color: #0f172a;
   color: #f1f5f9;
+  /* Tira o "snap" mobile sem perder UX */
+  -webkit-tap-highlight-color: transparent;
 }
 
+/* ─── Scrollbar custom (sutil, brand-aware) ─────────────────────────────── */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #334155 #1e293b;
+  scrollbar-color: #334155 transparent;
 }
 
 *::-webkit-scrollbar {
@@ -22,10 +38,76 @@ body {
 }
 
 *::-webkit-scrollbar-track {
-  background: #1e293b;
+  background: transparent;
 }
 
 *::-webkit-scrollbar-thumb {
   background-color: #334155;
   border-radius: 3px;
+  transition: background-color 200ms;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #475569;
+}
+
+/* ─── Componentes utilitários reutilizáveis ─────────────────────────────── */
+@layer components {
+  /* Card padrão do app — usa essa classe pra qualquer container elevado.
+     Evita inconsistência de border-radius/borda/sombra entre views. */
+  .card {
+    @apply bg-slate-800/70 border border-slate-700/60 rounded-xl shadow-soft
+           backdrop-blur-sm;
+  }
+
+  /* Variante "elevada" pra cards principais (Terminal de Apostas etc.) */
+  .card-raised {
+    @apply card shadow-raised;
+  }
+
+  /* Botão primário (verde marca) */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg
+           bg-brand-500 hover:bg-brand-600 active:bg-brand-700
+           text-white font-medium text-sm
+           transition-colors duration-150
+           focus:outline-none focus:ring-2 focus:ring-brand-500/40
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Botão secundário (slate) */
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg
+           bg-slate-800 hover:bg-slate-700 active:bg-slate-600
+           text-slate-200 border border-slate-700 hover:border-slate-600
+           font-medium text-sm
+           transition-colors duration-150
+           focus:outline-none focus:ring-2 focus:ring-brand-500/30;
+  }
+
+  /* Pill discreto (badges) */
+  .pill {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md
+           text-[10px] font-bold uppercase tracking-wider
+           border;
+  }
+
+  /* Skeleton shimmer — pra loading states */
+  .skeleton {
+    @apply rounded-md bg-gradient-to-r from-slate-800 via-slate-700/60 to-slate-800
+           bg-[length:200%_100%] animate-shimmer;
+  }
+
+  /* Container padrão da página */
+  .page {
+    @apply container mx-auto px-4 sm:px-6 py-6 max-w-7xl;
+  }
+}
+
+/* ─── Tipografia padronizada para tabelas e dashboards ──────────────────── */
+@layer utilities {
+  /* Números monoespaçados em tabelas (alinha colunas) */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
 }

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { api } from '../services/api'
 import { PlayerAvatar, playerPhotoUrl } from '../components/PlayerAvatar'
+import { SkeletonGameGrid, SkeletonPlayerRow } from '../components/Skeleton'
+import { EmptyState, InlineError } from '../components/States'
 import type { TodayGames, LiveGame, HotRanking, LiveGameAnalysis, HotRankingPlayer } from '../types'
 
 function getCurrentSeason(): string {
@@ -293,20 +295,27 @@ function ProjectionPill({
 
 // Pílula com projeção esperada + range (low–high) abaixo.
 // Dá ao usuário a leitura central + a faixa de incerteza num só componente.
+// Em jogos finalizados (isFinal=true), mostra apenas o valor real sem
+// margem de erro nem range — não tem mais incerteza, é o stat final.
 function RangeProjectionPill({
-  color, projection, label,
+  color, projection, label, isFinal,
 }: {
   color: 'orange' | 'sky' | 'violet'
   projection: { low: number; expected: number; high: number }
   label: string
+  isFinal?: boolean
 }) {
   const c = PILL_COLOR[color]
   return (
     <div className={`flex-1 text-center ${c.bg} rounded-lg py-2 px-1 border ${c.ring}`}>
       <p className={`${c.text} font-bold text-xl leading-none`}>{projection.expected}</p>
-      <p className={`${c.sub} text-[10px] mt-1`}>
-        {projection.low} – {projection.high}
-      </p>
+      {isFinal ? (
+        <p className={`${c.sub} text-[10px] mt-1 uppercase tracking-wider font-semibold`}>Final</p>
+      ) : (
+        <p className={`${c.sub} text-[10px] mt-1`}>
+          {projection.low} – {projection.high}
+        </p>
+      )}
       <p className={`${c.sub} text-xs mt-0.5 font-semibold`}>{label}</p>
     </div>
   )
@@ -330,11 +339,12 @@ function MiniDecisionPill({ tab, decision }: { tab: 'PTS' | 'REB' | 'AST'; decis
 }
 
 function PlayerCard({
-  p, compact, activeTab,
+  p, compact, activeTab, isFinal,
 }: {
   p: HotRankingPlayer
   compact: boolean
   activeTab: StatTab
+  isFinal?: boolean
 }) {
   const decision = getDecisionForStat(p, activeTab)
   const cfg = DECISION[decision]
@@ -434,30 +444,34 @@ function PlayerCard({
           </div>
         </div>
 
-        {/* Projeção até o fim do jogo (com margem de erro) */}
+        {/* Projeção até o fim do jogo (com margem de erro) — ou stats finais */}
         {!compact && (
           <div className="mt-3 pt-3 border-t border-slate-700/50">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs text-amber-300/80 font-semibold">
-                🎯 Projeção até o fim do jogo
+              <p className={`text-xs font-semibold ${isFinal ? 'text-slate-300' : 'text-amber-300/80'}`}>
+                {isFinal ? '🏁 Estatísticas finais' : '🎯 Projeção até o fim do jogo'}
               </p>
-              <span
-                className="text-[10px] text-slate-600 cursor-help"
-                title="Estimativa final do jogador se mantiver o ritmo atual deste jogo (com pequeno ajuste pela média da temporada para estabilizar). O número grande é a projeção esperada; abaixo, a faixa mín–máx representa a margem de incerteza (cai conforme o jogo avança)."
-              >
-                ℹ️
-              </span>
+              {!isFinal && (
+                <span
+                  className="text-[10px] text-slate-600 cursor-help"
+                  title="Estimativa final do jogador se mantiver o ritmo atual deste jogo (com pequeno ajuste pela média da temporada para estabilizar). O número grande é a projeção esperada; abaixo, a faixa mín–máx representa a margem de incerteza (cai conforme o jogo avança)."
+                >
+                  ℹ️
+                </span>
+              )}
             </div>
             <div className="flex gap-2">
-              <RangeProjectionPill color="orange" projection={p.pace_projection_points}   label="PTS" />
-              <RangeProjectionPill color="sky"    projection={p.pace_projection_assists}  label="AST" />
-              <RangeProjectionPill color="violet" projection={p.pace_projection_rebounds} label="REB" />
+              <RangeProjectionPill color="orange" projection={p.pace_projection_points}   label="PTS" isFinal={isFinal} />
+              <RangeProjectionPill color="sky"    projection={p.pace_projection_assists}  label="AST" isFinal={isFinal} />
+              <RangeProjectionPill color="violet" projection={p.pace_projection_rebounds} label="REB" isFinal={isFinal} />
             </div>
-            <p className="text-slate-600 text-[10px] mt-2 italic">
-              Considera os minutos típicos do jogador (já com descansos).
-              Margem ± diminui conforme o jogo avança.
-            </p>
-            {(p.foul_trouble || p.blowout_risk) && (
+            {!isFinal && (
+              <p className="text-slate-600 text-[10px] mt-2 italic">
+                Considera os minutos típicos do jogador (já com descansos).
+                Margem ± diminui conforme o jogo avança.
+              </p>
+            )}
+            {!isFinal && (p.foul_trouble || p.blowout_risk) && (
               <p className="text-amber-400/80 text-[10px] mt-1 leading-snug">
                 {p.foul_trouble && p.blowout_risk
                   ? 'Projeção reduzida: foul trouble + blowout iminente.'
@@ -614,13 +628,14 @@ function TopOpportunities({ players }: { players: HotRankingPlayer[] }) {
 // ─── Team Ranking Group ───────────────────────────────────────────────────────
 
 function TeamRankingGroup({
-  tricode, teamName, players, compact, activeTab,
+  tricode, teamName, players, compact, activeTab, isFinal,
 }: {
   tricode: string
   teamName: string
   players: HotRankingPlayer[]
   compact: boolean
   activeTab: StatTab
+  isFinal?: boolean
 }) {
   if (players.length === 0) return null
 
@@ -668,7 +683,7 @@ function TeamRankingGroup({
             <div className="flex-1 h-px bg-emerald-500/20" />
           </div>
           <div className="space-y-2">
-            {highValue.map(p => <PlayerCard key={p.player_id} p={p} compact={compact} activeTab={activeTab} />)}
+            {highValue.map(p => <PlayerCard key={p.player_id} p={p} compact={compact} activeTab={activeTab} isFinal={isFinal} />)}
           </div>
         </div>
       )}
@@ -683,7 +698,7 @@ function TeamRankingGroup({
             </div>
           )}
           <div className="space-y-2">
-            {neutral.map(p => <PlayerCard key={p.player_id} p={p} compact={compact} activeTab={activeTab} />)}
+            {neutral.map(p => <PlayerCard key={p.player_id} p={p} compact={compact} activeTab={activeTab} isFinal={isFinal} />)}
           </div>
         </div>
       )}
@@ -696,7 +711,7 @@ function TeamRankingGroup({
             <div className="flex-1 h-px bg-red-500/20" />
           </div>
           <div className="space-y-2">
-            {lowValue.map(p => <PlayerCard key={p.player_id} p={p} compact={compact} activeTab={activeTab} />)}
+            {lowValue.map(p => <PlayerCard key={p.player_id} p={p} compact={compact} activeTab={activeTab} isFinal={isFinal} />)}
           </div>
         </div>
       )}
@@ -708,7 +723,7 @@ function TeamRankingGroup({
 
 const STATUS_COLORS: Record<string, string> = {
   hot:           'bg-red-500/20 text-red-400 border border-red-500/30',
-  above_average: 'bg-orange-500/20 text-orange-400 border border-orange-500/30',
+  above_average: 'bg-amber-500/15 text-amber-300 border border-amber-500/30',
   normal:        'bg-slate-700 text-slate-400 border border-slate-600',
   below_average: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
   cold:          'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30',
@@ -762,33 +777,39 @@ function GameCard({ game, selected, onClick }: { game: LiveGame; selected: boole
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left bg-slate-800 rounded-xl p-4 border transition-all ${
-        selected ? 'border-orange-500 shadow-lg shadow-orange-500/10' : 'border-slate-700 hover:border-slate-500'
-      }`}
+      className={[
+        'group w-full text-left p-4 rounded-xl border',
+        'transition-all duration-200 ease-out',
+        'focus:outline-none focus:ring-2 focus:ring-brand-500/40',
+        selected
+          ? 'bg-slate-800 border-brand-500 shadow-glow'
+          : 'bg-slate-800/70 border-slate-700/70 hover:border-slate-500 hover:bg-slate-800 hover:-translate-y-0.5 shadow-soft',
+      ].join(' ')}
     >
       <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
-        <span className={`text-xs font-medium ${live ? 'text-green-400' : 'text-slate-500'}`}>
-          {live && '🔴 '}
+        <span className={`text-xs font-medium ${live ? 'text-brand-400' : 'text-slate-500'}`}>
+          {live && (
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand-500 mr-1.5 animate-pulse-subtle" />
+          )}
           {STATUS_LABELS[game.game_status] ?? game.game_status}
           {live && ` · Q${game.period} ${game.clock}`}
         </span>
-        {/* Horário do jogo, formatado no timezone do usuário.
-            Mostra em "Não iniciado" e (mais discreto) em "Finalizado". */}
+        {/* Horário do jogo, formatado no timezone do usuário. */}
         {localTime && !live && (
-          <span className="text-xs text-slate-400 font-medium">
-            🕐 {localTime}{upcoming && dayHint}
+          <span className="text-xs text-slate-400 font-medium tabular">
+            {localTime}{upcoming && dayHint}
           </span>
         )}
       </div>
       <div className="flex items-center justify-between">
         <div className="text-center flex-1">
           <p className="text-slate-300 font-semibold text-sm">{game.away_team.tricode}</p>
-          <p className="text-3xl font-bold text-white mt-1">{game.away_team.score}</p>
+          <p className="text-3xl font-bold text-white mt-1 tabular">{game.away_team.score}</p>
         </div>
-        <span className="text-slate-600 text-xs px-3">@</span>
+        <span className="text-slate-600 text-xs px-3 font-medium">@</span>
         <div className="text-center flex-1">
           <p className="text-slate-300 font-semibold text-sm">{game.home_team.tricode}</p>
-          <p className="text-3xl font-bold text-white mt-1">{game.home_team.score}</p>
+          <p className="text-3xl font-bold text-white mt-1 tabular">{game.home_team.score}</p>
         </div>
       </div>
       <p className="text-slate-600 text-xs mt-3 truncate">{game.away_team.name} vs {game.home_team.name}</p>
@@ -889,22 +910,40 @@ export default function LivePage() {
   // Falhas silenciosas: mantém os últimos dados bons e tenta de novo.
   // Também re-busca imediatamente quando o usuário troca o modo de blowout
   // (efeito disparado pela mudança em blowoutOverride).
+  //
+  // O response do ranking traz period/clock/score/status, então também
+  // atualizamos o selectedGame ao vivo — sem isso, o cabeçalho do jogo
+  // (placar e relógio) ficava congelado mesmo com stats atualizando.
   useEffect(() => {
-    if (!selectedGame || selectedGame.game_status !== 'in_progress') return
+    if (!selectedGame || selectedGame.game_status === 'not_started') return
 
     const tick = async () => {
       try {
         const r = await api.getHotRanking(selectedGame.game_id, season, 50, blowoutOverride)
         setRanking(r.data)
+
+        // Sincroniza o selectedGame com o estado fresco do jogo
+        // (placar, relógio, período, status). Se o jogo terminou, isso
+        // reflete imediatamente na UI (placar congela, projeções viram "Final").
+        setSelectedGame(prev => prev ? {
+          ...prev,
+          game_status: r.data.game_status,
+          period: r.data.period,
+          clock: r.data.clock,
+          home_team: { ...prev.home_team, score: r.data.home_score },
+          away_team: { ...prev.away_team, score: r.data.away_score },
+        } : prev)
       } catch {
         // intencional: erro transitório não derruba o último snapshot bom
       }
     }
     // Disparo imediato pra refletir mudança de modo sem esperar 10s.
     tick()
+    // Para de fazer polling se o jogo já está finalizado — não vai mudar mais.
+    if (selectedGame.game_status === 'final') return
     const id = setInterval(tick, 10_000)
     return () => clearInterval(id)
-  }, [selectedGame, season, blowoutOverride])
+  }, [selectedGame?.game_id, selectedGame?.game_status, season, blowoutOverride])
 
   // Auto-refresh da Análise Completa também, pra manter as projeções da
   // tabela alinhadas com o ranking (que tem polling acima).
@@ -948,10 +987,15 @@ export default function LivePage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-7xl">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-white">Jogos ao Vivo</h2>
-        <span className="text-slate-500 text-sm bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
+    <div className="page">
+      <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
+        <div>
+          <h2 className="text-2xl font-bold text-white tracking-tight">Jogos ao Vivo</h2>
+          <p className="text-slate-500 text-sm mt-1">
+            Acompanhamento em tempo real, projeções e melhores apostas.
+          </p>
+        </div>
+        <span className="text-slate-400 text-xs font-medium bg-slate-800/60 border border-slate-700/60 px-3 py-1.5 rounded-full">
           Temporada {season}
         </span>
       </div>
@@ -980,44 +1024,33 @@ export default function LivePage() {
         </div>
       )}
       {error === 'games_error' && (
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-6 flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <p className="text-amber-300 font-semibold text-sm mb-1">
-              ⚠️ Não foi possível carregar a lista de jogos
-            </p>
-            <p className="text-amber-200/70 text-xs leading-relaxed">
-              O servidor pode estar inicializando (cold start) ou sem
-              conexão com a NBA no momento. Vamos tentar novamente
-              automaticamente em alguns segundos.
-            </p>
-          </div>
-          <button
-            onClick={() => loadGames()}
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-200 border border-amber-500/40 hover:bg-amber-500/30 transition-colors shrink-0"
-          >
-            🔄 Tentar agora
-          </button>
-        </div>
+        <InlineError
+          title="Não foi possível carregar a lista de jogos"
+          description="O servidor pode estar inicializando ou sem conexão com a NBA. Tentando novamente automaticamente."
+          onRetry={() => loadGames()}
+        />
       )}
 
-      {/* Loading games */}
-      {loadingGames && (
-        <div className="flex items-center justify-center py-20 text-slate-500">
-          <p>Carregando jogos do dia...</p>
+      {/* Loading games — skeleton premium em vez de spinner/texto */}
+      {loadingGames && !todayGames && (
+        <div className="mb-8">
+          <div className="skeleton h-3 w-40 mb-4" />
+          <SkeletonGameGrid count={6} />
         </div>
       )}
 
       {/* Games grid */}
       {todayGames && (
         <>
-          <p className="text-slate-500 text-sm mb-4">
-            {todayGames.date} · {todayGames.games.length} jogo(s)
+          <p className="text-slate-500 text-sm mb-4 tabular">
+            {todayGames.date} · <span className="text-slate-400 font-medium">{todayGames.games.length} jogo(s)</span>
           </p>
           {todayGames.games.length === 0 ? (
-            <div className="text-center py-20 text-slate-600">
-              <div className="text-5xl mb-3">📅</div>
-              <p>Nenhum jogo agendado para hoje.</p>
-            </div>
+            <EmptyState
+              icon="📅"
+              title="Nenhum jogo agendado para hoje"
+              description="Volte amanhã ou confira o calendário oficial da NBA."
+            />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
               {todayGames.games.map(g => (
@@ -1066,20 +1099,25 @@ export default function LivePage() {
             </div>
           )}
 
-          {loadingRanking && (
-            <div className="flex items-center gap-3 py-8 text-slate-500 text-sm">
-              <span className="animate-pulse">⏳</span>
-              Buscando médias da temporada e calculando análises...
+          {loadingRanking && !ranking && (
+            <div className="card-raised p-5 mb-6 space-y-3">
+              <div className="skeleton h-4 w-48" />
+              <div className="skeleton h-3 w-72" />
+              <div className="space-y-2 mt-4">
+                <SkeletonPlayerRow />
+                <SkeletonPlayerRow />
+                <SkeletonPlayerRow />
+              </div>
             </div>
           )}
 
           {/* Hot Ranking — Betting Terminal */}
           {ranking && (
-            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-5 mb-6">
+            <div className="card-raised p-5 mb-6 animate-fade-in">
               {/* Header */}
               <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
                 <div>
-                  <h4 className="text-white font-bold text-lg">🔥 Terminal de Apostas</h4>
+                  <h4 className="text-white font-bold text-lg tracking-tight">🔥 Terminal de Apostas</h4>
                   <p className="text-slate-500 text-xs mt-0.5">
                     {activeTab === 'GERAL'
                       ? 'Visão geral — desempenho composto de cada jogador'
@@ -1124,7 +1162,7 @@ export default function LivePage() {
                     onClick={() => setCompact(c => !c)}
                     className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
                       compact
-                        ? 'bg-orange-500/20 border-orange-500/40 text-orange-300'
+                        ? 'bg-brand-500/20 border-brand-500/40 text-brand-300'
                         : 'bg-slate-700 border-slate-600 text-slate-400 hover:text-slate-300'
                     }`}
                   >
@@ -1189,6 +1227,7 @@ export default function LivePage() {
                     players={ranking.ranking.filter(p => p.team === selectedGame.away_team.tricode)}
                     compact={compact}
                     activeTab={activeTab}
+                    isFinal={ranking.game_status === 'final'}
                   />
                   <TeamRankingGroup
                     tricode={selectedGame.home_team.tricode}
@@ -1196,6 +1235,7 @@ export default function LivePage() {
                     players={ranking.ranking.filter(p => p.team === selectedGame.home_team.tricode)}
                     compact={compact}
                     activeTab={activeTab}
+                    isFinal={ranking.game_status === 'final'}
                   />
                 </>
               )}
@@ -1206,17 +1246,24 @@ export default function LivePage() {
           {!analysis && !loadingAnalysis && ranking && (
             <button
               onClick={loadAnalysis}
-              className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 px-5 py-2.5 rounded-xl text-sm border border-slate-700 transition-colors mb-6"
+              className="btn-secondary mb-6"
             >
-              📊 Carregar análise completa
-              <span className="text-slate-500 text-xs">(pode levar 1–3 min na 1ª vez)</span>
+              <span>📊 Carregar análise completa</span>
+              <span className="text-slate-500 text-xs">(1–3 min na 1ª vez)</span>
             </button>
           )}
 
           {loadingAnalysis && (
-            <p className="text-slate-500 text-sm mb-6 animate-pulse">
-              ⏳ Buscando médias da temporada de cada jogador... Aguarde.
-            </p>
+            <div className="card p-5 mb-6 space-y-3">
+              <div className="skeleton h-4 w-44" />
+              <div className="skeleton h-3 w-60" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                <SkeletonPlayerRow />
+                <SkeletonPlayerRow />
+                <SkeletonPlayerRow />
+                <SkeletonPlayerRow />
+              </div>
+            </div>
           )}
 
           {/* Full analysis table */}
