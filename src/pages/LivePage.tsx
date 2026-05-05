@@ -1082,11 +1082,14 @@ export default function LivePage() {
                 )}
               </p>
             </div>
-            {/* Blowout % do jogo — sempre presente em jogos ao vivo
-                (mesmo a 0-5%) pra dar referência constante. Esconde em
-                finalizados (a margem já é visível no placar). */}
-            {ranking?.blowout_risk && ranking.blowout_risk.level !== 'final' && (() => {
+            {/* Blowout % do jogo — SEMPRE visível pra dar referência
+                constante. Em jogos ao vivo: cor pelo nível (red/amber/slate).
+                Em finalizados: slate neutro (histórico, calculado pela margem
+                final). Tooltip mostra a razão calculada no backend. */}
+            {ranking?.blowout_risk && (() => {
+              const isFinal = ranking.blowout_risk.level === 'final'
               const styles =
+                isFinal                                 ? 'bg-slate-700/40 text-slate-300 border-slate-600' :
                 ranking.blowout_risk.level === 'high'   ? 'bg-red-500/15 text-red-300 border-red-500/40' :
                 ranking.blowout_risk.level === 'medium' ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' :
                                                           'bg-slate-700/60 text-slate-300 border-slate-600'
