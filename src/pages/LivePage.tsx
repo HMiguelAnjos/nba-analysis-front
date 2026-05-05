@@ -392,12 +392,12 @@ function PlayerCard({
                 ⚠️ {p.fouls} faltas
               </span>
             )}
-            {p.blowout_risk && (
+            {p.blowout_impact?.applies && (
               <span
                 className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30"
-                title="Placar aberto: titulares costumam sentar antes do fim. Projeção foi reduzida."
+                title={p.blowout_impact.reason}
               >
-                💥 Blowout
+                💥 Risco de descanso
               </span>
             )}
             {!p.on_court && (
@@ -471,13 +471,13 @@ function PlayerCard({
                 Margem ± diminui conforme o jogo avança.
               </p>
             )}
-            {!isFinal && (p.foul_trouble || p.blowout_risk) && (
+            {!isFinal && (p.foul_trouble || p.blowout_impact?.applies) && (
               <p className="text-amber-400/80 text-[10px] mt-1 leading-snug">
-                {p.foul_trouble && p.blowout_risk
-                  ? 'Projeção reduzida: foul trouble + blowout iminente.'
+                {p.foul_trouble && p.blowout_impact?.applies
+                  ? 'Projeção reduzida: foul trouble + risco de descanso.'
                   : p.foul_trouble
                   ? `Projeção reduzida: ${p.fouls} faltas aumentam risco de banco.`
-                  : 'Projeção reduzida: placar aberto, titulares tendem a sentar antes.'}
+                  : 'Projeção reduzida: jogador pode ser poupado pelo coach.'}
               </p>
             )}
           </div>
@@ -528,10 +528,10 @@ function OpportunityRow({ o }: { o: BettingOpportunity }) {
               ⚠️ {o.player.fouls}F
             </span>
           )}
-          {o.player.blowout_risk && (
+          {o.player.blowout_impact?.applies && (
             <span
               className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0"
-              title="Placar aberto — titulares tendem a sentar antes do fim. Projeção foi reduzida."
+              title={`Risco de descanso — ${o.player.blowout_impact.reason}`}
             >
               💥
             </span>
@@ -1298,7 +1298,7 @@ export default function LivePage() {
                     reb: r.pace_projection_rebounds,
                     ast: r.pace_projection_assists,
                     foul_trouble: r.foul_trouble,
-                    blowout_risk: r.blowout_risk,
+                    blowout_impact: r.blowout_impact,
                     fouls: r.fouls,
                   }]) ?? [],
                 )
@@ -1340,9 +1340,9 @@ export default function LivePage() {
                             const proj = projectionByPlayer.get(p.player_id)
                             // Fallback: se ranking ainda não chegou, computa
                             // foul_trouble localmente direto do analysis.
-                            const foulTrouble = proj?.foul_trouble ?? p.fouls >= 4
-                            const blowoutRisk = proj?.blowout_risk ?? false
-                            const fouls       = proj?.fouls ?? p.fouls
+                            const foulTrouble  = proj?.foul_trouble ?? p.fouls >= 4
+                            const blowoutImpact = proj?.blowout_impact ?? null
+                            const fouls        = proj?.fouls ?? p.fouls
                             return (
                               <tr key={p.player_id} className="border-b border-slate-700/40 hover:bg-slate-700/30 transition-colors">
                                 <td className="px-5 py-3 text-white font-medium">
@@ -1356,10 +1356,10 @@ export default function LivePage() {
                                         ⚠️ {fouls}F
                                       </span>
                                     )}
-                                    {blowoutRisk && (
+                                    {blowoutImpact?.applies && (
                                       <span
                                         className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30"
-                                        title="Placar aberto — titulares tendem a sentar."
+                                        title={`Risco de descanso — ${blowoutImpact.reason}`}
                                       >
                                         💥
                                       </span>

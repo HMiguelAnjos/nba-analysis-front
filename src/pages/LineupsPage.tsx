@@ -84,6 +84,14 @@ function PlayerRow({ p }: { p: LineupPlayer }) {
               ✕ INATIVO
             </span>
           )}
+          {p.blowout_impact?.applies && (
+            <span
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30"
+              title={`Risco de descanso — ${p.blowout_impact.reason}. Esse jogador tem maior chance de perder minutos se o jogo virar blowout.`}
+            >
+              💥 Risco de descanso
+            </span>
+          )}
         </div>
 
         {/* Linha de stats compacta */}

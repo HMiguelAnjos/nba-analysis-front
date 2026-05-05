@@ -91,8 +91,11 @@ export interface HotRankingPlayer {
   pace_projection_rebounds: PaceProjection
   fouls: number
   foul_trouble: boolean
+  /** @deprecated use blowout_impact?.applies — mantido pra compat */
   blowout_risk: boolean
+  blowout_impact: PlayerBlowoutImpact | null
   on_court: boolean
+  is_starter: boolean
   status: string
   score: number
 }
@@ -106,6 +109,17 @@ export interface PaceProjection {
 export interface BlowoutRisk {
   percentage: number              // 0–100
   level: 'low' | 'medium' | 'high' | 'final'
+  reason: string
+}
+
+/**
+ * Impacto do blowout sobre um JOGADOR específico.
+ * `null` = não mostrar flag pra esse jogador (jogador não está em risco
+ * de perder minutos, ou jogo não está perto de blowout).
+ */
+export interface PlayerBlowoutImpact {
+  applies: boolean
+  level: 'low' | 'medium' | 'high'
   reason: string
 }
 
@@ -155,6 +169,7 @@ export interface LineupPlayer {
   performance_rating: number      // 0–10
   performance_label: string       // Excelente | Bom | Regular | Ruim | N/A
   low_confidence: boolean         // <10 min jogados
+  blowout_impact: PlayerBlowoutImpact | null
 }
 
 export interface LineupTeam {
