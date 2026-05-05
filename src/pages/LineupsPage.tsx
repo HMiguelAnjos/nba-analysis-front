@@ -6,22 +6,18 @@ import { EmptyState, InlineError } from '../components/States'
 import type { BlowoutRisk, LineupGame, LineupPlayer, LineupTeam, LiveGame, TodayGames } from '../types'
 
 // ─── Badge discreto de risco de blowout ────────────────────────────────────
-// Aparece só em jogos ao vivo. Em finalizados, vira "Encerrado".
-// Tooltip mostra a razão calculada no backend (período, diferença, tempo).
+// Mostra SEMPRE em jogos ao vivo, com cor proporcional ao nível e tooltip
+// explicando o motivo. Em jogos finalizados não aparece (a margem final
+// já é visível no placar e o status "Encerrado" deixa o contexto claro).
 function BlowoutBadge({ risk }: { risk: BlowoutRisk }) {
-  if (risk.level === 'final') {
-    return null  // o estado "encerrado" já aparece em outro lugar
-  }
-  if (risk.level === 'low' && risk.percentage <= 5) {
-    return null  // jogo equilibrado: não polui a UI
-  }
+  if (risk.level === 'final') return null
 
-  const styles = {
-    low:    'bg-slate-700/60 text-slate-300 border-slate-600',
-    medium: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-    high:   'bg-red-500/15 text-red-300 border-red-500/40',
-    final:  'bg-slate-700/60 text-slate-400 border-slate-600',
-  }[risk.level]
+  // Cor: high vermelho, medium âmbar, baixo cinza. A pílula aparece mesmo
+  // em 0-5% pra dar referência constante do nível atual ao usuário.
+  const styles =
+    risk.level === 'high'   ? 'bg-red-500/15 text-red-300 border-red-500/40' :
+    risk.level === 'medium' ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' :
+                              'bg-slate-700/60 text-slate-300 border-slate-600'
 
   return (
     <span

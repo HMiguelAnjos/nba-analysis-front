@@ -1064,10 +1064,10 @@ export default function LivePage() {
       {/* Selected game panel */}
       {selectedGame && (
         <div className="border-t border-slate-700 pt-6">
-          {/* Game header */}
+          {/* Game header com blowout % discreto à direita */}
           <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
             <div>
-              <h3 className="text-xl font-bold text-white">
+              <h3 className="text-xl font-bold text-white tracking-tight">
                 {selectedGame.away_team.tricode} @ {selectedGame.home_team.tricode}
               </h3>
               <p className="text-slate-500 text-sm mt-0.5">
@@ -1082,6 +1082,23 @@ export default function LivePage() {
                 )}
               </p>
             </div>
+            {/* Blowout % do jogo — sempre presente em jogos ao vivo
+                (mesmo a 0-5%) pra dar referência constante. Esconde em
+                finalizados (a margem já é visível no placar). */}
+            {ranking?.blowout_risk && ranking.blowout_risk.level !== 'final' && (() => {
+              const styles =
+                ranking.blowout_risk.level === 'high'   ? 'bg-red-500/15 text-red-300 border-red-500/40' :
+                ranking.blowout_risk.level === 'medium' ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' :
+                                                          'bg-slate-700/60 text-slate-300 border-slate-600'
+              return (
+                <span
+                  className={`text-xs font-semibold px-2.5 py-1 rounded-lg border cursor-help select-none ${styles}`}
+                  title={ranking.blowout_risk.reason}
+                >
+                  💥 Blowout: {ranking.blowout_risk.percentage}%
+                </span>
+              )
+            })()}
           </div>
 
           {/* Jogo ainda não iniciado */}
