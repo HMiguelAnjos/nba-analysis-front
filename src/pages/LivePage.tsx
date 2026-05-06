@@ -91,14 +91,37 @@ function getDecisionForStat(p: HotRankingPlayer, tab: StatTab): Decision {
   let diff = 0
   let expected = 0
   let minAbs = 0   // floor absoluto para considerar STRONG/LEAN
-  if (tab === 'PTS') { diff = p.points_diff;   expected = p.expected_points;   minAbs = 2   }
-  if (tab === 'REB') { diff = p.rebounds_diff; expected = p.expected_rebounds; minAbs = 1   }
-  if (tab === 'AST') { diff = p.assists_diff;  expected = p.expected_assists;  minAbs = 0.8 }
+  let current = 0
+  let projection = 0
+  if (tab === 'PTS') {
+    diff = p.points_diff;   expected = p.expected_points;   minAbs = 2
+    current = p.current_points;   projection = p.pace_projection_points.expected
+  }
+  if (tab === 'REB') {
+    diff = p.rebounds_diff; expected = p.expected_rebounds; minAbs = 1
+    current = p.current_rebounds; projection = p.pace_projection_rebounds.expected
+  }
+  if (tab === 'AST') {
+    diff = p.assists_diff;  expected = p.expected_assists;  minAbs = 0.8
+    current = p.current_assists; projection = p.pace_projection_assists.expected
+  }
 
   // Sem baseline suficiente para julgar — sai de cena.
   if (expected < 0.5) return 'NEUTRAL'
 
   const pct = diff / expected
+  // Quanto a projeção espera que o jogador AINDA produza até o fim do jogo.
+  // Se for próximo de zero, ele plateou — não há upside pra apostar OVER,
+  // mesmo que ele esteja acima do esperado pros minutos ATUAIS.
+  // (Caso real: cara fez 7 ast no Q1, projeção fim = 7 → não é OVER, é "ele já entregou".)
+  const projectedAdditional = projection - current
+
+  // ── Gate de OVER: só recomenda se a projeção mostra mais produção ─
+  // Bloqueia OVER quando o jogador já bateu o teto projetado. Não afeta
+  // UNDER (player abaixo do esperado pode + projeção baixa = UNDER válido).
+  if (pct > 0 && projectedAdditional < minAbs * 0.5) {
+    return 'NEUTRAL'
+  }
 
   // Para entrar em STRONG/LEAN, exige tanto o % quanto o piso absoluto.
   if (pct >  0.50 && diff >  minAbs * 1.5) return 'STRONG_OVER'
