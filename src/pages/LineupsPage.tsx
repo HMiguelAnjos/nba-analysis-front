@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../services/api'
 import { PlayerAvatar } from '../components/PlayerAvatar'
+import { LiveClock } from '../components/LiveClock'
 import { SkeletonGameGrid, SkeletonPlayerRow } from '../components/Skeleton'
 import { EmptyState, InlineError } from '../components/States'
 import type { BlowoutRisk, LineupGame, LineupPlayer, LineupTeam, LiveGame, TodayGames } from '../types'
@@ -223,12 +224,17 @@ function GameSelector({ game, selected, onClick }: { game: LiveGame; selected: b
           : 'bg-slate-800/70 border-slate-700/70 hover:border-slate-500 hover:-translate-y-0.5 shadow-soft',
       ].join(' ')}
     >
-      <p className={`text-xs font-medium mb-2 ${live ? 'text-brand-400' : 'text-slate-500'}`}>
+      <p className={`text-xs font-medium mb-2 ${live ? 'text-brand-400' : 'text-slate-500'} inline-flex items-center gap-1.5`}>
         {live && (
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand-500 mr-1.5 animate-pulse-subtle" />
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand-500 animate-pulse-subtle" />
         )}
-        {STATUS_LABELS[game.game_status] ?? game.game_status}
-        {live && ` · Q${game.period} ${game.clock}`}
+        <span>{STATUS_LABELS[game.game_status] ?? game.game_status}</span>
+        {live && (
+          <>
+            <span className="text-slate-600">·</span>
+            <LiveClock period={game.period} clock={game.clock} isLive={live} />
+          </>
+        )}
       </p>
       <div className="flex items-center justify-between tabular">
         <span className="text-slate-200 font-bold">{game.away_team.tricode} <span className="text-slate-300">{game.away_team.score}</span></span>
@@ -394,14 +400,21 @@ export default function LineupsPage() {
             <>
               {/* Header com placar live + risco de blowout discreto */}
               <div className="flex items-center justify-between flex-wrap gap-3 mb-4 px-1">
-                <div className="text-sm text-slate-400">
+                <div className="text-sm text-slate-400 inline-flex items-center gap-2 flex-wrap">
                   {lineup.game_status === 'in_progress' && (
-                    <span className="text-green-400 font-medium">🔴 Q{lineup.period} {lineup.clock}</span>
+                    <span className="text-brand-400 font-medium inline-flex items-center gap-1.5">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand-500 animate-pulse-subtle" />
+                      <LiveClock
+                        period={lineup.period}
+                        clock={lineup.clock}
+                        isLive
+                      />
+                    </span>
                   )}
                   {lineup.game_status === 'final' && (
                     <span className="text-slate-400 font-medium">🏁 Encerrado</span>
                   )}
-                  <span className="ml-3 text-slate-500">
+                  <span className="text-slate-500 tabular">
                     {lineup.away_team.tricode} {lineup.away_team.score} @ {lineup.home_team.tricode} {lineup.home_team.score}
                   </span>
                 </div>

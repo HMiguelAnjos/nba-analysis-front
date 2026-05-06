@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { api } from '../services/api'
 import { PlayerAvatar, playerPhotoUrl } from '../components/PlayerAvatar'
+import { LiveClock } from '../components/LiveClock'
 import { SkeletonGameGrid, SkeletonPlayerRow } from '../components/Skeleton'
 import { EmptyState, InlineError } from '../components/States'
 import type { TodayGames, LiveGame, HotRanking, LiveGameAnalysis, HotRankingPlayer } from '../types'
@@ -810,12 +811,17 @@ function GameCard({ game, selected, onClick }: { game: LiveGame; selected: boole
       ].join(' ')}
     >
       <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
-        <span className={`text-xs font-medium ${live ? 'text-brand-400' : 'text-slate-500'}`}>
+        <span className={`text-xs font-medium ${live ? 'text-brand-400' : 'text-slate-500'} inline-flex items-center gap-1.5`}>
           {live && (
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand-500 mr-1.5 animate-pulse-subtle" />
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand-500 animate-pulse-subtle" />
           )}
-          {STATUS_LABELS[game.game_status] ?? game.game_status}
-          {live && ` · Q${game.period} ${game.clock}`}
+          <span>{STATUS_LABELS[game.game_status] ?? game.game_status}</span>
+          {live && (
+            <>
+              <span className="text-slate-600">·</span>
+              <LiveClock period={game.period} clock={game.clock} isLive={live} />
+            </>
+          )}
         </span>
         {/* Horário do jogo, formatado no timezone do usuário. */}
         {localTime && !live && (
@@ -1103,10 +1109,21 @@ export default function LivePage() {
               <h3 className="text-xl font-bold text-white tracking-tight">
                 {selectedGame.away_team.tricode} @ {selectedGame.home_team.tricode}
               </h3>
-              <p className="text-slate-500 text-sm mt-0.5">
-                {selectedGame.game_status === 'in_progress'
-                  ? `🔴 Ao vivo · Q${selectedGame.period} ${selectedGame.clock}`
-                  : STATUS_LABELS[selectedGame.game_status]}
+              <p className="text-slate-500 text-sm mt-0.5 inline-flex items-center gap-1.5 flex-wrap">
+                {selectedGame.game_status === 'in_progress' ? (
+                  <>
+                    <span className="text-brand-400">🔴 Ao vivo</span>
+                    <span className="text-slate-600">·</span>
+                    <LiveClock
+                      period={selectedGame.period}
+                      clock={selectedGame.clock}
+                      isLive
+                      className="text-brand-400 font-medium"
+                    />
+                  </>
+                ) : (
+                  <span>{STATUS_LABELS[selectedGame.game_status]}</span>
+                )}
                 {selectedGame.game_status === 'not_started' && formatLocalGameTime(selectedGame.game_time_utc) && (
                   <span className="text-slate-400 ml-2">
                     🕐 {formatLocalGameTime(selectedGame.game_time_utc)}
