@@ -393,132 +393,164 @@ function PlayerCard({
   const rebDecision = getDecisionForStat(p, 'REB')
   const astDecision = getDecisionForStat(p, 'AST')
 
+  // Tooltip composto que ressoa as informações de contexto que antes
+  // ficavam "hardcoded" no card. Mantém a info acessível sem poluir.
+  const contextNotes: string[] = []
+  if (p.foul_trouble) contextNotes.push(`${p.fouls} faltas — risco de banco`)
+  if (p.blowout_impact?.applies) contextNotes.push(p.blowout_impact.reason)
+  if (!p.on_court) contextNotes.push('Atualmente no banco')
+
   return (
-    <div className={`bg-slate-800 rounded-xl overflow-hidden border border-slate-700/60 hover:border-slate-600 transition-colors ${cfg.borderLeft}`}>
-      {/* Decision Banner — most prominent */}
-      <div className={`px-4 py-2.5 flex items-center justify-between ${cfg.bannerBg}`}>
-        <span className={`text-sm font-black tracking-widest uppercase ${cfg.bannerText}`}>
+    <div className={`bg-slate-800 rounded-xl overflow-hidden border border-slate-700/60 hover:border-slate-600 hover:-translate-y-0.5 transition-all duration-150 ${cfg.borderLeft} flex flex-col`}>
+      {/* Banner — compacto mas legível */}
+      <div className={`px-3 py-2 flex items-center justify-between ${cfg.bannerBg}`}>
+        <span className={`text-xs font-black tracking-wider uppercase ${cfg.bannerText}`}>
           {cfg.emoji} {cfg.label}
           {activeTab !== 'GERAL' && (
-            <span className="ml-2 text-[10px] font-semibold opacity-70">· {TAB_LABELS[activeTab]}</span>
+            <span className="ml-1.5 text-[9px] font-semibold opacity-70">· {TAB_LABELS[activeTab]}</span>
           )}
         </span>
-        <span className="text-slate-500 text-xs font-mono">
+        <span className="text-slate-400 text-[11px] font-mono tabular">
           {activeTab === 'GERAL' ? 'score' : 'Δ'} {value > 0 ? '+' : ''}{value.toFixed(1)}
         </span>
       </div>
 
-      <div className="p-4">
-        {/* Player name + minutes context */}
-        <div className="mb-2 flex items-start gap-3">
+      <div className="p-3 flex-1 flex flex-col gap-3">
+        {/* Identidade do jogador — uma linha só */}
+        <div className="flex items-center gap-2.5">
           <PlayerAvatar
             photoUrl={playerPhotoUrl(p.player_id)}
             name={p.name}
-            size={40}
+            size={36}
             ringClassName={p.on_court ? 'ring-2 ring-emerald-500' : 'ring-1 ring-slate-700'}
           />
           <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h4 className="text-white font-bold text-base leading-tight">{p.name}</h4>
+            <h4 className="text-white font-semibold text-sm leading-tight truncate" title={p.name}>{p.name}</h4>
+            <p className="text-slate-500 text-[11px] mt-0.5 tabular">
+              {p.team} · {p.minutes} min
+            </p>
+          </div>
+          {/* Badges colapsadas em ícones — tooltip explica */}
+          <div className="flex items-center gap-1 shrink-0">
             {p.foul_trouble && (
               <span
-                className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-500/15 text-red-300 border border-red-500/30"
-                title={`${p.fouls} faltas — risco de banco / fouling out. Projeção foi reduzida.`}
+                className="text-[10px] font-bold px-1 py-0.5 rounded bg-red-500/15 text-red-300 border border-red-500/30 tabular"
+                title={`${p.fouls} faltas — risco de banco / fouling out`}
               >
-                ⚠️ {p.fouls} faltas
+                ⚠️{p.fouls}
               </span>
             )}
             {p.blowout_impact?.applies && (
               <span
-                className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30"
+                className="text-[10px] px-1 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30"
                 title={p.blowout_impact.reason}
               >
-                💥 Risco de descanso
+                💥
               </span>
             )}
             {!p.on_court && (
               <span
-                className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-600/30 text-slate-300 border border-slate-500/40"
-                title="Jogador atualmente no banco (descansando). Stats refletem o que ele já produziu."
+                className="text-[10px] px-1 py-0.5 rounded bg-slate-600/30 text-slate-300 border border-slate-500/40"
+                title="No banco agora"
               >
-                🪑 No banco
+                🪑
               </span>
             )}
           </div>
-          <p className="text-slate-500 text-xs mt-0.5">{p.team} · {p.minutes} min jogados</p>
-          </div>
         </div>
 
-        {/* Auto-insight */}
-        <p className="text-xs text-slate-400 italic mb-3 leading-relaxed border-l-2 border-slate-600 pl-2">{insight}</p>
-
-        {/* Stat bars */}
-        <div className="space-y-2 mb-1">
-          {!compact && (
-            <p className="text-xs text-slate-600 mb-1.5">
-              Atual vs. esperado para {p.minutes} min
-              {activeTab === 'GERAL' && <span className="ml-1 text-slate-700">· decisão por mercado ao lado</span>}
-            </p>
-          )}
-          <div className="flex items-center gap-2">
-            <div className="flex-1 min-w-0">
-              <StatBar label="PTS" actual={p.current_points} expected={p.expected_points} diff={p.points_diff} compact={compact} />
-            </div>
-            {activeTab === 'GERAL' && <MiniDecisionPill tab="PTS" decision={ptsDecision} />}
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="flex-1 min-w-0">
-              <StatBar label="AST" actual={p.current_assists} expected={p.expected_assists} diff={p.assists_diff} compact={compact} />
-            </div>
-            {activeTab === 'GERAL' && <MiniDecisionPill tab="AST" decision={astDecision} />}
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="flex-1 min-w-0">
-              <StatBar label="REB" actual={p.current_rebounds} expected={p.expected_rebounds} diff={p.rebounds_diff} compact={compact} />
-            </div>
-            {activeTab === 'GERAL' && <MiniDecisionPill tab="REB" decision={rebDecision} />}
-          </div>
+        {/* Stats grid — 3 colunas com Atual + Projeção fim por mercado */}
+        <div className="grid grid-cols-3 gap-2">
+          <CompactStatCell
+            label="PTS"
+            current={p.current_points}
+            expected={p.expected_points}
+            projected={p.pace_projection_points.expected}
+            diff={p.points_diff}
+            color="orange"
+            isFinal={isFinal}
+            decision={activeTab === 'GERAL' ? ptsDecision : undefined}
+          />
+          <CompactStatCell
+            label="AST"
+            current={p.current_assists}
+            expected={p.expected_assists}
+            projected={p.pace_projection_assists.expected}
+            diff={p.assists_diff}
+            color="sky"
+            isFinal={isFinal}
+            decision={activeTab === 'GERAL' ? astDecision : undefined}
+          />
+          <CompactStatCell
+            label="REB"
+            current={p.current_rebounds}
+            expected={p.expected_rebounds}
+            projected={p.pace_projection_rebounds.expected}
+            diff={p.rebounds_diff}
+            color="violet"
+            isFinal={isFinal}
+            decision={activeTab === 'GERAL' ? rebDecision : undefined}
+          />
         </div>
 
-        {/* Projeção até o fim do jogo (com margem de erro) — ou stats finais */}
-        {!compact && (
-          <div className="mt-3 pt-3 border-t border-slate-700/50">
-            <div className="flex items-center justify-between mb-2">
-              <p className={`text-xs font-semibold ${isFinal ? 'text-slate-300' : 'text-amber-300/80'}`}>
-                {isFinal ? '🏁 Estatísticas finais' : '🎯 Projeção até o fim do jogo'}
-              </p>
-              {!isFinal && (
-                <span
-                  className="text-[10px] text-slate-600 cursor-help"
-                  title="Estimativa final do jogador se mantiver o ritmo atual deste jogo (com pequeno ajuste pela média da temporada para estabilizar). O número grande é a projeção esperada; abaixo, a faixa mín–máx representa a margem de incerteza (cai conforme o jogo avança)."
-                >
-                  ℹ️
-                </span>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <RangeProjectionPill color="orange" projection={p.pace_projection_points}   label="PTS" isFinal={isFinal} />
-              <RangeProjectionPill color="sky"    projection={p.pace_projection_assists}  label="AST" isFinal={isFinal} />
-              <RangeProjectionPill color="violet" projection={p.pace_projection_rebounds} label="REB" isFinal={isFinal} />
-            </div>
-            {!isFinal && (
-              <p className="text-slate-600 text-[10px] mt-2 italic">
-                Considera os minutos típicos do jogador (já com descansos).
-                Margem ± diminui conforme o jogo avança.
-              </p>
-            )}
-            {!isFinal && (p.foul_trouble || p.blowout_impact?.applies) && (
-              <p className="text-amber-400/80 text-[10px] mt-1 leading-snug">
-                {p.foul_trouble && p.blowout_impact?.applies
-                  ? 'Projeção reduzida: foul trouble + risco de descanso.'
-                  : p.foul_trouble
-                  ? `Projeção reduzida: ${p.fouls} faltas aumentam risco de banco.`
-                  : 'Projeção reduzida: jogador pode ser poupado pelo coach.'}
-              </p>
-            )}
-          </div>
-        )}
+        {/* Insight discreto, só na última linha — colapsável via title */}
+        <p
+          className="text-[11px] text-slate-500 leading-snug truncate"
+          title={[insight, ...contextNotes].filter(Boolean).join(' · ')}
+        >
+          {insight}
+        </p>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Célula compacta de stat: empilha "atual / esp / proj fim" num quadrado
+ * pequeno, com o valor maior em destaque e os auxiliares abaixo. Usa cor
+ * por mercado pra leitura rápida.
+ */
+function CompactStatCell({
+  label, current, expected, projected, diff, color, isFinal, decision,
+}: {
+  label: 'PTS' | 'AST' | 'REB'
+  current: number
+  expected: number
+  projected: number
+  diff: number
+  color: 'orange' | 'sky' | 'violet'
+  isFinal?: boolean
+  decision?: Decision
+}) {
+  const c = PILL_COLOR[color]
+  const diffSign = diff > 0 ? '+' : ''
+  const diffColor = diff > 0 ? 'text-emerald-400' : diff < 0 ? 'text-red-400' : 'text-slate-500'
+
+  return (
+    <div className={`relative rounded-lg border ${c.ring} ${c.bg} px-2 py-2 flex flex-col items-center text-center`}>
+      <span className={`text-[10px] font-bold tracking-wider ${c.text}`}>
+        {label}
+      </span>
+      <span className="text-white text-xl font-bold leading-none mt-1 tabular">{current}</span>
+      <span className="text-[10px] text-slate-500 mt-0.5 tabular">
+        esp {expected.toFixed(1)}
+      </span>
+      <div className="flex items-center gap-1 mt-1.5 text-[10px] tabular">
+        <span className={c.sub}>
+          {isFinal ? 'final' : 'proj'} <span className={`${c.text} font-semibold`}>{projected}</span>
+        </span>
+      </div>
+      <span className={`absolute top-1 right-1.5 text-[10px] font-bold tabular ${diffColor}`}>
+        {diffSign}{diff.toFixed(1)}
+      </span>
+      {decision && decision !== 'NEUTRAL' && (
+        <span
+          className={`absolute -top-1.5 -left-1.5 text-[9px] px-1 py-0.5 rounded ${DECISION[decision].bannerBg} ${DECISION[decision].bannerText} font-bold leading-none`}
+          title={`${label}: ${DECISION[decision].label}`}
+        >
+          {DECISION[decision].emoji}
+        </span>
+      )}
     </div>
   )
 }
@@ -718,7 +750,7 @@ function TeamRankingGroup({
             <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest">⚡ Alto Valor</span>
             <div className="flex-1 h-px bg-emerald-500/20" />
           </div>
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {highValue.map(p => <PlayerCard key={p.player_id} p={p} compact={compact} activeTab={activeTab} isFinal={isFinal} />)}
           </div>
         </div>
@@ -733,7 +765,7 @@ function TeamRankingGroup({
               <div className="flex-1 h-px bg-slate-700/50" />
             </div>
           )}
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {neutral.map(p => <PlayerCard key={p.player_id} p={p} compact={compact} activeTab={activeTab} isFinal={isFinal} />)}
           </div>
         </div>
@@ -746,7 +778,7 @@ function TeamRankingGroup({
             <span className="text-xs font-bold text-red-400/70 uppercase tracking-widest">📉 Baixo Valor</span>
             <div className="flex-1 h-px bg-red-500/20" />
           </div>
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {lowValue.map(p => <PlayerCard key={p.player_id} p={p} compact={compact} activeTab={activeTab} isFinal={isFinal} />)}
           </div>
         </div>
