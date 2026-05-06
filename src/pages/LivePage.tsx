@@ -748,6 +748,21 @@ function formatLocalGameTime(utcIso: string | null | undefined): string {
   }).format(date)
 }
 
+// "Atualizado há Xs" — re-renderiza a cada segundo pra mostrar a frescura
+// dos dados sem depender de novo fetch. Quando o snapshot atualiza no
+// backend, o componente automaticamente reseta o contador (porque `iso`
+// muda como prop).
+function UpdatedAgo({ iso }: { iso: string }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  const ageSec = Math.max(0, Math.round((now - new Date(iso).getTime()) / 1000))
+  if (Number.isNaN(ageSec)) return null
+  return <span className="tabular">atualizado há {ageSec}s</span>
+}
+
 // Detecta se o início do jogo é noutro dia (raro, mas acontece em jogos
 // de horário tarde — visualmente útil mostrar "amanhã").
 function gameDayHint(utcIso: string | null | undefined): string {
@@ -870,6 +885,16 @@ export default function LivePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Refresh periódico da lista de jogos (30s) — captura jogos que mudam de
+  // not_started → in_progress → final, e atualiza placares/clocks dos cards
+  // do grid mesmo sem o usuário ter selecionado um.
+  // Cache do backend é gerado pelo worker em memória, sem custo na ScraperAPI.
+  useEffect(() => {
+    const id = setInterval(() => loadGames(false), 30_000)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Auto-retry da lista de jogos enquanto estiver em estado de erro.
   // Não fica retentando pra sempre — só enquanto o usuário está na página.
   useEffect(() => {
@@ -941,7 +966,7 @@ export default function LivePage() {
     tick()
     // Para de fazer polling se o jogo já está finalizado — não vai mudar mais.
     if (selectedGame.game_status === 'final') return
-    const id = setInterval(tick, 10_000)
+    const id = setInterval(tick, 5_000)
     return () => clearInterval(id)
   }, [selectedGame?.game_id, selectedGame?.game_status, season, blowoutOverride])
 
@@ -1142,6 +1167,12 @@ export default function LivePage() {
                     {activeTab === 'GERAL'
                       ? 'Visão geral — desempenho composto de cada jogador'
                       : `Foco no mercado de ${TAB_LABELS[activeTab].toLowerCase()} — recomendação por linha`}
+                    {ranking.updated_at && (
+                      <span className="text-slate-600 ml-2 inline-flex items-center gap-1">
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand-500 animate-pulse-subtle" aria-hidden />
+                        <UpdatedAgo iso={ranking.updated_at} />
+                      </span>
+                    )}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

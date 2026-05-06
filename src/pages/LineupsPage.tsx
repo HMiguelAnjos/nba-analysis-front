@@ -305,7 +305,7 @@ export default function LineupsPage() {
         // mantém último snapshot bom
       }
     }
-    const id = setInterval(tick, 10_000)
+    const id = setInterval(tick, 5_000)
     return () => clearInterval(id)
   }, [selectedGame])
 
