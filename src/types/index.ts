@@ -89,6 +89,17 @@ export interface HotRankingPlayer {
   pace_projection_points: PaceProjection
   pace_projection_assists: PaceProjection
   pace_projection_rebounds: PaceProjection
+  // Médias recentes (synthetic fair line input)
+  last_5_points: number
+  last_5_rebounds: number
+  last_5_assists: number
+  last_10_points: number
+  last_10_rebounds: number
+  last_10_assists: number
+  // Linha estimada + edge da projeção (synthetic bookmaker)
+  fair_line_points: FairLine
+  fair_line_rebounds: FairLine
+  fair_line_assists: FairLine
   fouls: number
   foul_trouble: boolean
   /** @deprecated use blowout_impact?.applies — mantido pra compat */
@@ -98,6 +109,20 @@ export interface HotRankingPlayer {
   is_starter: boolean
   status: string
   score: number
+}
+
+/**
+ * Linha estimada (synthetic bookmaker) e edge da nossa projeção pra
+ * um mercado específico (PTS/REB/AST).
+ *
+ * `line`: o que estimamos que um bookmaker abriria (formato típico .5).
+ * `edge`: nossa projeção fim-de-jogo − linha. Positivo = OVER tem valor.
+ * `decision`: derivado do edge — base da recomendação.
+ */
+export interface FairLine {
+  line: number
+  edge: number
+  decision: 'STRONG_OVER' | 'LEAN_OVER' | 'NEUTRAL' | 'LEAN_UNDER' | 'STRONG_UNDER'
 }
 
 export interface PaceProjection {

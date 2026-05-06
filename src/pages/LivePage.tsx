@@ -4,7 +4,7 @@ import { PlayerAvatar, playerPhotoUrl } from '../components/PlayerAvatar'
 import { LiveClock } from '../components/LiveClock'
 import { SkeletonGameGrid, SkeletonPlayerRow } from '../components/Skeleton'
 import { EmptyState, InlineError } from '../components/States'
-import type { TodayGames, LiveGame, HotRanking, LiveGameAnalysis, HotRankingPlayer } from '../types'
+import type { TodayGames, LiveGame, HotRanking, LiveGameAnalysis, HotRankingPlayer, FairLine } from '../types'
 
 function getCurrentSeason(): string {
   const now = new Date()
@@ -82,57 +82,57 @@ const TAB_COLORS: Record<StatTab, string> = {
 // 3 minutos vira "+200%" mas não tem nada de informativo. Ignoramos.
 const MIN_MINUTES_FOR_SIGNAL = 5.0
 
+/**
+ * Decisão de aposta por mercado, baseada no EDGE entre nossa projeção e
+ * a linha estimada (synthetic bookmaker do backend).
+ *
+ * Backend já calculou `fair_line_*.decision` usando edge em pontos
+ * absolutos (>=2 = STRONG, >=1 = LEAN, <1 = NEUTRAL, etc.). O front
+ * só aplica os filtros de qualidade:
+ *
+ *   - amostra muito pequena (<5 min jogados): muito cedo pra confiar
+ *   - jogador plateou (sem produção restante esperada): sem mercado vivo
+ */
 function getDecisionForStat(p: HotRankingPlayer, tab: StatTab): Decision {
   if (tab === 'GERAL') return getDecision(p.score, p.points_diff)
 
   // Amostra pequena demais — não vira recomendação por mercado.
   if (p.minutes < MIN_MINUTES_FOR_SIGNAL) return 'NEUTRAL'
 
-  let diff = 0
-  let expected = 0
-  let minAbs = 0   // floor absoluto para considerar STRONG/LEAN
   let current = 0
   let projection = 0
+  let fairDecision: Decision = 'NEUTRAL'
+  let minAbs = 0  // usado só pro gate de "produção restante meaningful"
+
   if (tab === 'PTS') {
-    diff = p.points_diff;   expected = p.expected_points;   minAbs = 2
-    current = p.current_points;   projection = p.pace_projection_points.expected
+    current = p.current_points
+    projection = p.pace_projection_points.expected
+    fairDecision = p.fair_line_points.decision
+    minAbs = 2
   }
   if (tab === 'REB') {
-    diff = p.rebounds_diff; expected = p.expected_rebounds; minAbs = 1
-    current = p.current_rebounds; projection = p.pace_projection_rebounds.expected
+    current = p.current_rebounds
+    projection = p.pace_projection_rebounds.expected
+    fairDecision = p.fair_line_rebounds.decision
+    minAbs = 1
   }
   if (tab === 'AST') {
-    diff = p.assists_diff;  expected = p.expected_assists;  minAbs = 0.8
-    current = p.current_assists; projection = p.pace_projection_assists.expected
+    current = p.current_assists
+    projection = p.pace_projection_assists.expected
+    fairDecision = p.fair_line_assists.decision
+    minAbs = 0.8
   }
 
-  // Sem baseline suficiente para julgar — sai de cena.
-  if (expected < 0.5) return 'NEUTRAL'
-
-  const pct = diff / expected
-  // Quanto a projeção espera que o jogador AINDA produza até o fim do jogo.
-  // Próximo de zero = ele plateou (jogo acabou pra ele OU ele saiu pro banco).
+  // Gate de "mercado vivo": se o jogador praticamente não vai mais
+  // produzir (proj ≈ current), não há aposta viável — independente
+  // do edge teórico. Cobre jogos finalizados (proj == current) e
+  // plateaus (jogador no banco há tempo etc.).
   const projectedAdditional = projection - current
-
-  // ── Gate simétrico de mercado live ────────────────────────────────
-  // Se a projeção indica que o jogador praticamente NÃO vai mais produzir,
-  // não há aposta viável em nenhuma direção:
-  //
-  //   - Sem upside → OVER perde sentido (atual ≈ proj)
-  //   - Sem mais minutos → UNDER já tá decidido, sem mercado live
-  //
-  // Aplica pra ambos os lados. Caso real (SGA Q4 final, atual 18, proj 18):
-  // antes mostrava -44% UNDER; agora vira NEUTRAL — não polui a UI.
   if (Math.abs(projectedAdditional) < minAbs * 0.5) {
     return 'NEUTRAL'
   }
 
-  // Para entrar em STRONG/LEAN, exige tanto o % quanto o piso absoluto.
-  if (pct >  0.50 && diff >  minAbs * 1.5) return 'STRONG_OVER'
-  if (pct >  0.18 && diff >  minAbs * 0.5) return 'LEAN_OVER'
-  if (pct > -0.18 || Math.abs(diff) <= minAbs * 0.5) return 'NEUTRAL'
-  if (pct > -0.50 || diff > -minAbs * 1.5) return 'LEAN_UNDER'
-  return 'STRONG_UNDER'
+  return fairDecision
 }
 
 // Valor numérico para ordenar/agrupar dentro de cada aba.
@@ -154,39 +154,37 @@ interface BettingOpportunity {
   player: HotRankingPlayer
   market: Market
   decision: Decision
-  pct: number
-  diff: number
   current: number
-  expected: number
   projected: number
-  projectionLow: number
-  projectionHigh: number
+  // Synthetic bookmaker line + edge (substitui % deviation antigo)
+  line: number
+  edge: number
 }
 
 function buildOpportunities(players: HotRankingPlayer[]): BettingOpportunity[] {
   const opps: BettingOpportunity[] = []
   for (const p of players) {
     const markets: Array<{
-      m: Market; diff: number; expected: number; current: number;
-      projection: { low: number; expected: number; high: number };
+      m: Market
+      current: number
+      projection: number
+      fair: FairLine
     }> = [
-      { m: 'PTS', diff: p.points_diff,   expected: p.expected_points,   current: p.current_points,   projection: p.pace_projection_points   },
-      { m: 'REB', diff: p.rebounds_diff, expected: p.expected_rebounds, current: p.current_rebounds, projection: p.pace_projection_rebounds },
-      { m: 'AST', diff: p.assists_diff,  expected: p.expected_assists,  current: p.current_assists,  projection: p.pace_projection_assists  },
+      { m: 'PTS', current: p.current_points,   projection: p.pace_projection_points.expected,   fair: p.fair_line_points   },
+      { m: 'REB', current: p.current_rebounds, projection: p.pace_projection_rebounds.expected, fair: p.fair_line_rebounds },
+      { m: 'AST', current: p.current_assists,  projection: p.pace_projection_assists.expected,  fair: p.fair_line_assists  },
     ]
-    for (const { m, diff, expected, current, projection } of markets) {
+    for (const { m, current, projection, fair } of markets) {
       const decision = getDecisionForStat(p, m)
       if (decision === 'NEUTRAL') continue
-      const pct = expected > 0 ? diff / expected : 0
       opps.push({
-        player: p, market: m, decision, pct, diff, current, expected,
-        projected: projection.expected,
-        projectionLow: projection.low,
-        projectionHigh: projection.high,
+        player: p, market: m, decision,
+        current, projected: projection,
+        line: fair.line, edge: fair.edge,
       })
     }
   }
-  // STRONG vem primeiro; depois ordena por |%| desviação.
+  // STRONG vem primeiro; depois ordena pelo edge absoluto (em pontos).
   const rank = (d: Decision) =>
     d === 'STRONG_OVER'  ? 4 :
     d === 'LEAN_OVER'    ? 3 :
@@ -195,7 +193,7 @@ function buildOpportunities(players: HotRankingPlayer[]): BettingOpportunity[] {
   opps.sort((a, b) => {
     const dr = rank(b.decision) - rank(a.decision)
     if (dr !== 0) return dr
-    return Math.abs(b.pct) - Math.abs(a.pct)
+    return Math.abs(b.edge) - Math.abs(a.edge)
   })
   return opps
 }
@@ -459,14 +457,14 @@ function PlayerCard({
           </div>
         </div>
 
-        {/* Stats grid — 3 colunas com Atual + Projeção fim por mercado */}
+        {/* Stats grid — 3 colunas com Atual / Linha estimada / Proj fim por mercado */}
         <div className="grid grid-cols-3 gap-2">
           <CompactStatCell
             label="PTS"
             current={p.current_points}
-            expected={p.expected_points}
             projected={p.pace_projection_points.expected}
-            diff={p.points_diff}
+            line={p.fair_line_points.line}
+            edge={p.fair_line_points.edge}
             color="orange"
             isFinal={isFinal}
             decision={activeTab === 'GERAL' ? ptsDecision : undefined}
@@ -474,9 +472,9 @@ function PlayerCard({
           <CompactStatCell
             label="AST"
             current={p.current_assists}
-            expected={p.expected_assists}
             projected={p.pace_projection_assists.expected}
-            diff={p.assists_diff}
+            line={p.fair_line_assists.line}
+            edge={p.fair_line_assists.edge}
             color="sky"
             isFinal={isFinal}
             decision={activeTab === 'GERAL' ? astDecision : undefined}
@@ -484,9 +482,9 @@ function PlayerCard({
           <CompactStatCell
             label="REB"
             current={p.current_rebounds}
-            expected={p.expected_rebounds}
             projected={p.pace_projection_rebounds.expected}
-            diff={p.rebounds_diff}
+            line={p.fair_line_rebounds.line}
+            edge={p.fair_line_rebounds.edge}
             color="violet"
             isFinal={isFinal}
             decision={activeTab === 'GERAL' ? rebDecision : undefined}
@@ -506,25 +504,25 @@ function PlayerCard({
 }
 
 /**
- * Célula compacta de stat: empilha "atual / esp / proj fim" num quadrado
- * pequeno, com o valor maior em destaque e os auxiliares abaixo. Usa cor
- * por mercado pra leitura rápida.
+ * Célula compacta de stat: empilha "atual / linha estimada / proj fim"
+ * num quadrado pequeno. O edge (proj − linha) é o número que importa
+ * pra aposta — destacado em verde/vermelho. Usa cor por mercado.
  */
 function CompactStatCell({
-  label, current, expected, projected, diff, color, isFinal, decision,
+  label, current, projected, line, edge, color, isFinal, decision,
 }: {
   label: 'PTS' | 'AST' | 'REB'
   current: number
-  expected: number
   projected: number
-  diff: number
+  line: number
+  edge: number
   color: 'orange' | 'sky' | 'violet'
   isFinal?: boolean
   decision?: Decision
 }) {
   const c = PILL_COLOR[color]
-  const diffSign = diff > 0 ? '+' : ''
-  const diffColor = diff > 0 ? 'text-emerald-400' : diff < 0 ? 'text-red-400' : 'text-slate-500'
+  const edgeSign = edge > 0 ? '+' : ''
+  const edgeColor = edge >= 1 ? 'text-emerald-400' : edge <= -1 ? 'text-red-400' : 'text-slate-500'
 
   return (
     <div className={`relative rounded-lg border ${c.ring} ${c.bg} px-2 py-2 flex flex-col items-center text-center`}>
@@ -532,16 +530,22 @@ function CompactStatCell({
         {label}
       </span>
       <span className="text-white text-xl font-bold leading-none mt-1 tabular">{current}</span>
-      <span className="text-[10px] text-slate-500 mt-0.5 tabular">
-        esp {expected.toFixed(1)}
+      <span
+        className="text-[10px] text-amber-300/80 mt-0.5 tabular"
+        title="Linha estimada (synthetic bookmaker) — base do edge"
+      >
+        linha {line}
       </span>
-      <div className="flex items-center gap-1 mt-1.5 text-[10px] tabular">
+      <div className="flex items-center gap-1 mt-1 text-[10px] tabular">
         <span className={c.sub}>
           {isFinal ? 'final' : 'proj'} <span className={`${c.text} font-semibold`}>{projected}</span>
         </span>
       </div>
-      <span className={`absolute top-1 right-1.5 text-[10px] font-bold tabular ${diffColor}`}>
-        {diffSign}{diff.toFixed(1)}
+      <span
+        className={`absolute top-1 right-1.5 text-[10px] font-bold tabular ${edgeColor}`}
+        title="Edge: projeção − linha. Positivo = OVER tem valor."
+      >
+        {edgeSign}{edge.toFixed(1)}
       </span>
       {decision && decision !== 'NEUTRAL' && (
         <span
@@ -563,8 +567,8 @@ function CompactStatCell({
 function OpportunityRow({ o }: { o: BettingOpportunity }) {
   const cfg = DECISION[o.decision]
   const direction = (o.decision === 'STRONG_OVER' || o.decision === 'LEAN_OVER') ? 'OVER' : 'UNDER'
-  const pctText = `${o.pct > 0 ? '+' : ''}${(o.pct * 100).toFixed(0)}%`
-  const diffText = `${o.diff > 0 ? '+' : ''}${o.diff.toFixed(1)}`
+  const edgeText = `${o.edge > 0 ? '+' : ''}${o.edge.toFixed(1)}`
+  const edgeColor = o.edge > 0 ? 'text-emerald-400' : 'text-red-400'
   return (
     <div className={`bg-slate-800 rounded-lg border border-slate-700/60 ${cfg.borderLeft} flex items-start gap-2 sm:gap-3 px-3 py-2.5`}>
       {/* Decision pill — encolhe um pouco no mobile */}
@@ -621,24 +625,31 @@ function OpportunityRow({ o }: { o: BettingOpportunity }) {
           <span className="text-slate-500">{o.player.team}</span>
         </div>
 
-        {/* Linha 3: stats em flex-wrap — cada par fica junto, quebra com graça no mobile */}
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 mt-1 text-xs text-slate-500">
+        {/* Linha 3: linha estimada + projeção + atual.
+            "Linha" é o que estimamos que o bookmaker abriria — base
+            do edge. Atual e projeção dão contexto. */}
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 mt-1 text-xs text-slate-500 tabular">
+          <span
+            className="whitespace-nowrap"
+            title="Linha estimada baseada em temporada + últimos 10 + últimos 5 jogos. Aproxima o que um bookmaker abriria."
+          >
+            Linha <span className="text-amber-300 font-bold">{o.line}</span>
+          </span>
           <span className="whitespace-nowrap">
             Atual <span className="text-slate-300 font-semibold">{o.current}</span>
           </span>
           <span className="whitespace-nowrap">
-            Esp. <span className="text-slate-400">{o.expected.toFixed(1)}</span>
-          </span>
-          <span className="whitespace-nowrap">
-            Proj. <span className="text-slate-300 font-semibold">{o.projected}</span>
+            Proj. fim <span className="text-slate-300 font-semibold">{o.projected}</span>
           </span>
         </div>
       </div>
 
-      {/* Magnitude */}
+      {/* Edge — o número que importa: projeção − linha estimada */}
       <div className="text-right shrink-0 mt-0.5">
-        <p className={`text-sm font-bold ${o.pct > 0 ? 'text-green-400' : 'text-red-400'}`}>{pctText}</p>
-        <p className="text-slate-600 text-xs">{diffText}</p>
+        <p className={`text-sm font-bold tabular ${edgeColor}`}>
+          {edgeText}
+        </p>
+        <p className="text-slate-600 text-[10px] uppercase tracking-wider">edge</p>
       </div>
     </div>
   )
