@@ -111,15 +111,19 @@ function getDecisionForStat(p: HotRankingPlayer, tab: StatTab): Decision {
 
   const pct = diff / expected
   // Quanto a projeção espera que o jogador AINDA produza até o fim do jogo.
-  // Se for próximo de zero, ele plateou — não há upside pra apostar OVER,
-  // mesmo que ele esteja acima do esperado pros minutos ATUAIS.
-  // (Caso real: cara fez 7 ast no Q1, projeção fim = 7 → não é OVER, é "ele já entregou".)
+  // Próximo de zero = ele plateou (jogo acabou pra ele OU ele saiu pro banco).
   const projectedAdditional = projection - current
 
-  // ── Gate de OVER: só recomenda se a projeção mostra mais produção ─
-  // Bloqueia OVER quando o jogador já bateu o teto projetado. Não afeta
-  // UNDER (player abaixo do esperado pode + projeção baixa = UNDER válido).
-  if (pct > 0 && projectedAdditional < minAbs * 0.5) {
+  // ── Gate simétrico de mercado live ────────────────────────────────
+  // Se a projeção indica que o jogador praticamente NÃO vai mais produzir,
+  // não há aposta viável em nenhuma direção:
+  //
+  //   - Sem upside → OVER perde sentido (atual ≈ proj)
+  //   - Sem mais minutos → UNDER já tá decidido, sem mercado live
+  //
+  // Aplica pra ambos os lados. Caso real (SGA Q4 final, atual 18, proj 18):
+  // antes mostrava -44% UNDER; agora vira NEUTRAL — não polui a UI.
+  if (Math.abs(projectedAdditional) < minAbs * 0.5) {
     return 'NEUTRAL'
   }
 
