@@ -76,8 +76,16 @@ const TAB_COLORS: Record<StatTab, string> = {
 // esperado é muito pequeno (poucos minutos jogados), uma diferença
 // percentual gigante mas absolutamente pequena (ex: +1 reb sobre 0.5
 // esperado = +200%) não vira STRONG.
+// Mínimo de minutos jogados pra extrair sinal estatístico confiável.
+// Abaixo disso, qualquer % de desvio é puro ruído — uma cesta a mais em
+// 3 minutos vira "+200%" mas não tem nada de informativo. Ignoramos.
+const MIN_MINUTES_FOR_SIGNAL = 5.0
+
 function getDecisionForStat(p: HotRankingPlayer, tab: StatTab): Decision {
   if (tab === 'GERAL') return getDecision(p.score, p.points_diff)
+
+  // Amostra pequena demais — não vira recomendação por mercado.
+  if (p.minutes < MIN_MINUTES_FOR_SIGNAL) return 'NEUTRAL'
 
   let diff = 0
   let expected = 0
